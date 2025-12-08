@@ -12,7 +12,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useTheme } from '../../theme';
-import { PraxisButton, Card, Spacer } from '../../components';
+import { PraxisButton, Card, Spacer, Chip } from '../../components';
+import { usePlanStore } from '../../store/usePlanStore';
+import type { WorkoutPlanDay } from '../../core/types';
 import dayjs from 'dayjs';
 import weekday from 'dayjs/plugin/weekday';
 import isoWeek from 'dayjs/plugin/isoWeek';
@@ -21,66 +23,110 @@ dayjs.extend(weekday);
 dayjs.extend(isoWeek);
 
 type MainStackParamList = {
-  WorkoutOverview: undefined;
+  WorkoutOverview: { planDayId?: string } | undefined;
+  OnboardingComplete: undefined;
 };
 
 type NavigationProp = StackNavigationProp<MainStackParamList>;
 
-type DayStatus = 'completed' | 'missed' | 'upcoming';
+type DayStatus = 'none' | 'rest' | 'pastPlanned' | 'todayPlanned' | 'upcoming';
 
-interface DayData {
-  date: string; // yyyy-mm-dd
-  status: DayStatus;
+/**
+ * Normalize date string to yyyy-mm-dd format
+ */
+function toDateKey(dateString: string): string {
+  return dateString.slice(0, 10);
 }
 
 export default function CalendarScreen() {
   const theme = useTheme();
   const navigation = useNavigation<NavigationProp>();
+  const { plan } = usePlanStore();
+
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
 
   const today = dayjs();
+  const todayKey = today.format('YYYY-MM-DD');
   const currentWeekStart = today.startOf('isoWeek');
 
-  // TODO: Replace with actual data from usePlanStore and useSessionStore
-  const mockWeeklyData: DayData[] = useMemo(() => {
-    const days: DayData[] = [];
+  // Build plan by date map
+  const planByDate = useMemo(() => {
+    const map = new Map<string, WorkoutPlanDay>();
+    plan.forEach((day) => {
+      const dateKey = toDateKey(day.date);
+      map.set(dateKey, day);
+    });
+    return map;
+  }, [plan]);
+
+  /**
+   * Get day status based on plan data
+   */
+  const getDayStatus = (dateKey: string): DayStatus => {
+    const planDay = planByDate.get(dateKey);
+
+    if (!planDay) {
+      return 'none';
+    }
+
+    if (planDay.blocks.length === 0) {
+      return 'rest';
+    }
+
+    // Compare dates
+    const dayDate = dayjs(dateKey);
+    const todayDate = dayjs(todayKey);
+
+    if (dayDate.isSame(todayDate, 'day')) {
+      return 'todayPlanned';
+    } else if (dayDate.isBefore(todayDate, 'day')) {
+      return 'pastPlanned';
+    } else {
+      return 'upcoming';
+    }
+  };
+
+  // Generate weekly data
+  const weeklyData = useMemo(() => {
+    const days: Array<{ date: string; status: DayStatus }> = [];
     for (let i = 0; i < 7; i++) {
       const date = currentWeekStart.add(i, 'day');
-      // Mock statuses: completed, missed, upcoming
-      const statuses: DayStatus[] = ['completed', 'missed', 'upcoming'];
+      const dateKey = date.format('YYYY-MM-DD');
       days.push({
-        date: date.format('YYYY-MM-DD'),
-        status: statuses[i % 3],
+        date: dateKey,
+        status: getDayStatus(dateKey),
       });
     }
     return days;
-  }, [currentWeekStart]);
+  }, [currentWeekStart, planByDate]);
 
-  // TODO: Replace with actual data from usePlanStore and useSessionStore
-  const mockMonthlyData: DayData[] = useMemo(() => {
-    const days: DayData[] = [];
+  // Generate monthly data
+  const monthlyData = useMemo(() => {
+    const days: Array<{ date: string; status: DayStatus }> = [];
     const monthStart = today.startOf('month');
     const monthEnd = today.endOf('month');
     const daysInMonth = monthEnd.date();
-
-    for (let i = 1; i <= daysInMonth; i++) {
-      const date = monthStart.date(i);
-      const statuses: DayStatus[] = ['completed', 'missed', 'upcoming'];
-      days.push({
-        date: date.format('YYYY-MM-DD'),
-        status: statuses[Math.floor(Math.random() * 3)],
-      });
-    }
 
     // Pad with days from previous month to align to week start
     const firstDayOfWeek = monthStart.isoWeekday();
     for (let i = firstDayOfWeek - 1; i > 0; i--) {
       const date = monthStart.subtract(i, 'day');
-      days.unshift({
-        date: date.format('YYYY-MM-DD'),
-        status: 'upcoming',
+      const dateKey = date.format('YYYY-MM-DD');
+      days.push({
+        date: dateKey,
+        status: getDayStatus(dateKey),
+      });
+    }
+
+    // Add current month days
+    for (let i = 1; i <= daysInMonth; i++) {
+      const date = monthStart.date(i);
+      const dateKey = date.format('YYYY-MM-DD');
+      days.push({
+        date: dateKey,
+        status: getDayStatus(dateKey),
       });
     }
 
@@ -89,14 +135,15 @@ export default function CalendarScreen() {
     const daysToAdd = 7 - lastDayOfWeek;
     for (let i = 1; i <= daysToAdd; i++) {
       const date = monthEnd.add(i, 'day');
+      const dateKey = date.format('YYYY-MM-DD');
       days.push({
-        date: date.format('YYYY-MM-DD'),
-        status: 'upcoming',
+        date: dateKey,
+        status: getDayStatus(dateKey),
       });
     }
 
     return days;
-  }, [today]);
+  }, [today, planByDate]);
 
   const getWeekRange = (): string => {
     const weekStart = currentWeekStart.format('MMM D');
@@ -114,49 +161,56 @@ export default function CalendarScreen() {
   };
 
   const handleViewFullWorkout = () => {
+    if (!selectedDate) return;
+
+    const planDay = planByDate.get(selectedDate);
+    if (!planDay) {
+      setIsDrawerVisible(false);
+      return;
+    }
+
     setIsDrawerVisible(false);
-    // TODO: Pass date parameter to WorkoutOverviewScreen
-    navigation.navigate('WorkoutOverview');
+    // TODO: Verify route name matches navigation setup
+    navigation.navigate('WorkoutOverview', { planDayId: planDay.id });
   };
 
   const getDotColor = (status: DayStatus, isToday: boolean): string => {
-    if (isToday) return theme.colors.acidGreen; // Will have border outline
+    if (isToday && status !== 'none' && status !== 'rest') {
+      return theme.colors.acidGreen;
+    }
+
     switch (status) {
-      case 'completed':
+      case 'todayPlanned':
         return theme.colors.acidGreen;
-      case 'missed':
-        return theme.colors.danger;
       case 'upcoming':
         return theme.colors.graphite;
+      case 'pastPlanned':
+        return theme.colors.steel;
+      case 'rest':
+        return 'transparent';
+      case 'none':
+        return 'transparent';
       default:
         return theme.colors.graphite;
     }
   };
 
-  const getStatusText = (status: DayStatus): string => {
-    switch (status) {
-      case 'completed':
-        return 'Completed';
-      case 'missed':
-        return 'Missed';
-      case 'upcoming':
-        return 'Upcoming';
-      default:
-        return 'Upcoming';
+  const getDotBorderColor = (status: DayStatus, isToday: boolean): string => {
+    if (isToday && (status === 'todayPlanned' || status === 'upcoming')) {
+      return theme.colors.acidGreen;
     }
+    if (status === 'rest') {
+      return theme.colors.steel;
+    }
+    return 'transparent';
   };
 
-  const getStatusDot = (status: DayStatus): string => {
-    switch (status) {
-      case 'completed':
-        return '✓';
-      case 'missed':
-        return '✕';
-      case 'upcoming':
-        return '○';
-      default:
-        return '○';
-    }
+  const getDotFill = (status: DayStatus): boolean => {
+    return (
+      status === 'todayPlanned' ||
+      status === 'upcoming' ||
+      status === 'pastPlanned'
+    );
   };
 
   const renderWeeklyView = () => {
@@ -180,9 +234,11 @@ export default function CalendarScreen() {
 
         <View style={styles.weeklyGrid}>
           {dayLabels.map((label, index) => {
-            const dayData = mockWeeklyData[index];
+            const dayData = weeklyData[index];
             const isToday = dayjs(dayData.date).isSame(today, 'day');
             const dotColor = getDotColor(dayData.status, isToday);
+            const borderColor = getDotBorderColor(dayData.status, isToday);
+            const isFilled = getDotFill(dayData.status);
 
             return (
               <TouchableOpacity
@@ -208,33 +264,15 @@ export default function CalendarScreen() {
                   style={[
                     styles.weeklyDot,
                     {
-                      backgroundColor: dotColor,
+                      backgroundColor: isFilled ? dotColor : 'transparent',
                       width: 32,
                       height: 32,
                       borderRadius: 16,
-                      borderWidth: isToday ? 2 : 0,
-                      borderColor: theme.colors.acidGreen,
+                      borderWidth: borderColor !== 'transparent' ? 2 : 0,
+                      borderColor: borderColor,
                     },
                   ]}
-                >
-                  <Text
-                    style={[
-                      styles.dotSymbol,
-                      {
-                        color:
-                          dayData.status === 'completed' && !isToday
-                            ? theme.colors.black
-                            : dayData.status === 'missed'
-                              ? theme.colors.black
-                              : theme.colors.white,
-                        fontFamily: theme.typography.fonts.bodyMedium,
-                        fontSize: 16,
-                      },
-                    ]}
-                  >
-                    {getStatusDot(dayData.status)}
-                  </Text>
-                </View>
+                />
               </TouchableOpacity>
             );
           })}
@@ -246,8 +284,8 @@ export default function CalendarScreen() {
   const renderMonthlyView = () => {
     const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const weeks = [];
-    for (let i = 0; i < mockMonthlyData.length; i += 7) {
-      weeks.push(mockMonthlyData.slice(i, i + 7));
+    for (let i = 0; i < monthlyData.length; i += 7) {
+      weeks.push(monthlyData.slice(i, i + 7));
     }
 
     return (
@@ -302,8 +340,11 @@ export default function CalendarScreen() {
             {week.map((dayData, dayIndex) => {
               const isToday = dayjs(dayData.date).isSame(today, 'day');
               const dotColor = getDotColor(dayData.status, isToday);
+              const borderColor = getDotBorderColor(dayData.status, isToday);
+              const isFilled = getDotFill(dayData.status);
               const isCurrentMonth =
                 dayjs(dayData.date).month() === today.month();
+              const dayNumber = dayjs(dayData.date).date();
 
               return (
                 <TouchableOpacity
@@ -312,42 +353,39 @@ export default function CalendarScreen() {
                   onPress={() => handleDayPress(dayData.date)}
                   activeOpacity={0.7}
                 >
+                  {isCurrentMonth && (
+                    <Text
+                      style={[
+                        styles.monthlyDayNumber,
+                        {
+                          color: theme.colors.muted,
+                          fontFamily: theme.typography.fonts.body,
+                          fontSize: theme.typography.sizes.bodySmall,
+                          marginBottom: 4,
+                        },
+                      ]}
+                    >
+                      {dayNumber}
+                    </Text>
+                  )}
                   <View
                     style={[
                       styles.monthlyDot,
                       {
-                        backgroundColor: isCurrentMonth
-                          ? dotColor
-                          : theme.colors.transparent,
-                        width: isCurrentMonth ? 24 : 20,
-                        height: isCurrentMonth ? 24 : 20,
-                        borderRadius: isCurrentMonth ? 12 : 10,
-                        borderWidth: isToday ? 2 : 0,
-                        borderColor: theme.colors.acidGreen,
+                        backgroundColor:
+                          isFilled && isCurrentMonth ? dotColor : 'transparent',
+                        width: isCurrentMonth ? 20 : 16,
+                        height: isCurrentMonth ? 20 : 16,
+                        borderRadius: isCurrentMonth ? 10 : 8,
+                        borderWidth:
+                          borderColor !== 'transparent' && isCurrentMonth
+                            ? 2
+                            : 0,
+                        borderColor: borderColor,
                         opacity: isCurrentMonth ? 1 : 0.3,
                       },
                     ]}
-                  >
-                    {isCurrentMonth && (
-                      <Text
-                        style={[
-                          styles.monthlyDotSymbol,
-                          {
-                            color:
-                              dayData.status === 'completed' && !isToday
-                                ? theme.colors.black
-                                : dayData.status === 'missed'
-                                  ? theme.colors.black
-                                  : theme.colors.white,
-                            fontFamily: theme.typography.fonts.bodyMedium,
-                            fontSize: 12,
-                          },
-                        ]}
-                      >
-                        {getStatusDot(dayData.status)}
-                      </Text>
-                    )}
-                  </View>
+                  />
                 </TouchableOpacity>
               );
             })}
@@ -361,21 +399,7 @@ export default function CalendarScreen() {
     if (!selectedDate) return null;
 
     const selectedDay = dayjs(selectedDate);
-    const dayData = [...mockWeeklyData, ...mockMonthlyData].find(
-      (d) => d.date === selectedDate
-    ) || { date: selectedDate, status: 'upcoming' as DayStatus };
-
-    // TODO: Get actual workout data from usePlanStore
-    const mockWorkoutData = {
-      focusTags: ['Strength', 'Engine'],
-      duration: 61,
-      volume: [
-        { exercise: 'Back Squat', sets: 5 },
-        { exercise: 'RDL', sets: 3 },
-        { exercise: 'Conditioning', duration: 18 },
-      ],
-      pr: 'Back Squat: Estimated +10 lb PR',
-    };
+    const planDay = planByDate.get(selectedDate);
 
     return (
       <Modal
@@ -431,136 +455,198 @@ export default function CalendarScreen() {
               {selectedDay.format('dddd, MMM D')}
             </Text>
 
-            <Text
-              style={[
-                styles.drawerSession,
-                {
-                  color: theme.colors.muted,
-                  fontFamily: theme.typography.fonts.body,
-                  fontSize: theme.typography.sizes.body,
-                  marginBottom: theme.spacing.md,
-                },
-              ]}
-            >
-              {mockWorkoutData.focusTags.join(' + ')} —{' '}
-              {mockWorkoutData.duration} min
-            </Text>
-
-            <View
-              style={[
-                styles.statusBadge,
-                {
-                  backgroundColor:
-                    dayData.status === 'completed'
-                      ? theme.colors.acidGreen
-                      : dayData.status === 'missed'
-                        ? theme.colors.danger
-                        : theme.colors.steel,
-                  borderRadius: theme.radius.pill,
-                  paddingVertical: theme.spacing.xs,
-                  paddingHorizontal: theme.spacing.md,
-                  alignSelf: 'flex-start',
-                  marginBottom: theme.spacing.lg,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.statusText,
-                  {
-                    color:
-                      dayData.status === 'upcoming'
-                        ? theme.colors.white
-                        : theme.colors.black,
-                    fontFamily: theme.typography.fonts.bodyMedium,
-                    fontSize: theme.typography.sizes.bodySmall,
-                  },
-                ]}
-              >
-                {getStatusText(dayData.status)}
-              </Text>
-            </View>
-
-            <Text
-              style={[
-                styles.sectionTitle,
-                {
-                  color: theme.colors.white,
-                  fontFamily: theme.typography.fonts.headingMedium,
-                  fontSize: theme.typography.sizes.body,
-                  marginBottom: theme.spacing.md,
-                },
-              ]}
-            >
-              Volume Summary
-            </Text>
-
-            <View
-              style={[styles.volumeList, { marginBottom: theme.spacing.lg }]}
-            >
-              {mockWorkoutData.volume.map((item, index) => (
-                <Text
-                  key={index}
-                  style={[
-                    styles.volumeItem,
-                    {
-                      color: theme.colors.white,
-                      fontFamily: theme.typography.fonts.body,
-                      fontSize: theme.typography.sizes.body,
-                      marginBottom: theme.spacing.sm,
-                    },
-                  ]}
-                >
-                  • {item.exercise}
-                  {'sets' in item
-                    ? ` — ${item.sets} sets`
-                    : ` — ${item.duration} min`}
-                </Text>
-              ))}
-            </View>
-
-            {mockWorkoutData.pr && (
+            {planDay ? (
               <>
-                <Spacer size="md" />
+                {/* Focus Tags */}
+                {planDay.focusTags.length > 0 && (
+                  <View
+                    style={[
+                      styles.focusTagsContainer,
+                      { marginBottom: theme.spacing.md },
+                    ]}
+                  >
+                    {planDay.focusTags.map((tag, index) => (
+                      <Chip
+                        key={index}
+                        label={tag}
+                        variant="accent"
+                        size="small"
+                        style={{ marginRight: theme.spacing.xs }}
+                      />
+                    ))}
+                  </View>
+                )}
+
+                {/* Duration */}
                 <Text
                   style={[
-                    styles.sectionTitle,
+                    styles.drawerSession,
                     {
-                      color: theme.colors.white,
-                      fontFamily: theme.typography.fonts.headingMedium,
-                      fontSize: theme.typography.sizes.body,
-                      marginBottom: theme.spacing.md,
-                    },
-                  ]}
-                >
-                  PR Highlights
-                </Text>
-                <Text
-                  style={[
-                    styles.prText,
-                    {
-                      color: theme.colors.acidGreen,
-                      fontFamily: theme.typography.fonts.bodyMedium,
+                      color: theme.colors.muted,
+                      fontFamily: theme.typography.fonts.body,
                       fontSize: theme.typography.sizes.body,
                       marginBottom: theme.spacing.lg,
                     },
                   ]}
                 >
-                  {mockWorkoutData.pr}
+                  {planDay.estimatedDurationMinutes} min
+                </Text>
+
+                {/* Blocks List */}
+                {planDay.blocks.length > 0 ? (
+                  <>
+                    <Text
+                      style={[
+                        styles.sectionTitle,
+                        {
+                          color: theme.colors.white,
+                          fontFamily: theme.typography.fonts.headingMedium,
+                          fontSize: theme.typography.sizes.body,
+                          marginBottom: theme.spacing.md,
+                        },
+                      ]}
+                    >
+                      Blocks
+                    </Text>
+                    <View
+                      style={[
+                        styles.blocksList,
+                        { marginBottom: theme.spacing.lg },
+                      ]}
+                    >
+                      {planDay.blocks.map((block, index) => (
+                        <Text
+                          key={block.id}
+                          style={[
+                            styles.blockItem,
+                            {
+                              color: theme.colors.white,
+                              fontFamily: theme.typography.fonts.body,
+                              fontSize: theme.typography.sizes.bodySmall,
+                              marginBottom:
+                                index < planDay.blocks.length - 1
+                                  ? theme.spacing.sm
+                                  : 0,
+                            },
+                          ]}
+                        >
+                          • {block.title}
+                        </Text>
+                      ))}
+                    </View>
+                  </>
+                ) : (
+                  <Text
+                    style={[
+                      styles.emptyText,
+                      {
+                        color: theme.colors.muted,
+                        fontFamily: theme.typography.fonts.body,
+                        fontSize: theme.typography.sizes.body,
+                        marginBottom: theme.spacing.lg,
+                      },
+                    ]}
+                  >
+                    Rest day — no workout planned.
+                  </Text>
+                )}
+
+                {/* View Full Workout Button */}
+                {planDay.blocks.length > 0 && (
+                  <PraxisButton
+                    title="View Full Workout"
+                    onPress={handleViewFullWorkout}
+                    size="large"
+                  />
+                )}
+              </>
+            ) : (
+              <>
+                <Text
+                  style={[
+                    styles.emptyText,
+                    {
+                      color: theme.colors.muted,
+                      fontFamily: theme.typography.fonts.body,
+                      fontSize: theme.typography.sizes.body,
+                      marginBottom: theme.spacing.lg,
+                    },
+                  ]}
+                >
+                  No workout planned.
                 </Text>
               </>
             )}
-
-            <PraxisButton
-              title="View Full Workout"
-              onPress={handleViewFullWorkout}
-              size="large"
-            />
           </View>
         </TouchableOpacity>
       </Modal>
     );
   };
+
+  // Empty plan state
+  if (plan.length === 0) {
+    return (
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.colors.black }]}
+        edges={['top', 'bottom']}
+      >
+        <View
+          style={[
+            styles.header,
+            {
+              paddingHorizontal: theme.spacing.lg,
+              paddingVertical: theme.spacing.md,
+              borderBottomWidth: 1,
+              borderBottomColor: theme.colors.steel,
+            },
+          ]}
+        >
+          <View style={{ width: 80 }} />
+          <Text
+            style={[
+              styles.headerTitle,
+              {
+                color: theme.colors.white,
+                fontFamily: theme.typography.fonts.headingLarge,
+                fontSize: theme.typography.sizes.h1,
+              },
+            ]}
+          >
+            Calendar
+          </Text>
+          <View style={{ width: 80 }} />
+        </View>
+
+        <View
+          style={[
+            styles.emptyContainer,
+            {
+              padding: theme.spacing.xl,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.emptyTitle,
+              {
+                color: theme.colors.white,
+                fontFamily: theme.typography.fonts.heading,
+                fontSize: theme.typography.sizes.h2,
+                marginBottom: theme.spacing.md,
+              },
+            ]}
+          >
+            No active training plan.
+          </Text>
+          <PraxisButton
+            title="Generate Plan"
+            onPress={() => navigation.navigate('OnboardingComplete')}
+            size="medium"
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView
@@ -585,8 +671,8 @@ export default function CalendarScreen() {
             styles.headerTitle,
             {
               color: theme.colors.white,
-              fontFamily: theme.typography.fonts.headingMedium,
-              fontSize: theme.typography.sizes.h2,
+              fontFamily: theme.typography.fonts.headingLarge,
+              fontSize: theme.typography.sizes.h1,
             },
           ]}
         >
@@ -603,6 +689,8 @@ export default function CalendarScreen() {
                 color: theme.colors.acidGreen,
                 fontFamily: theme.typography.fonts.bodyMedium,
                 fontSize: theme.typography.sizes.body,
+                width: 80,
+                textAlign: 'right',
               },
             ]}
           >
@@ -632,12 +720,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   headerTitle: {
-    fontWeight: '600',
+    fontWeight: '700',
   },
   toggleButton: {
     fontWeight: '500',
-    width: 80,
-    textAlign: 'right',
   },
   content: {
     flex: 1,
@@ -664,9 +750,6 @@ const styles = StyleSheet.create({
   weeklyDot: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  dotSymbol: {
-    fontWeight: '500',
   },
   monthlyScrollView: {
     flex: 1,
@@ -699,12 +782,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 48,
   },
+  monthlyDayNumber: {
+    fontWeight: '400',
+  },
   monthlyDot: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  monthlyDotSymbol: {
-    fontWeight: '500',
   },
   drawerOverlay: {
     flex: 1,
@@ -723,22 +806,34 @@ const styles = StyleSheet.create({
   drawerSession: {
     fontWeight: '400',
   },
-  statusBadge: {
-    // Styled inline
-  },
-  statusText: {
-    fontWeight: '500',
+  focusTagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
   },
   sectionTitle: {
     fontWeight: '600',
   },
-  volumeList: {
+  blocksList: {
     // marginBottom set inline
   },
-  volumeItem: {
+  blockItem: {
     lineHeight: 22,
   },
-  prText: {
-    fontWeight: '500',
+  emptyText: {
+    fontWeight: '400',
+    fontStyle: 'italic',
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyTitle: {
+    fontWeight: '700',
+    textAlign: 'center',
   },
 });
+
+// TODO: integrate completed session history to show "completed" vs "missed" vs "upcoming".
+// TODO: support swipe or navigation between weeks/months.
+// TODO: add legends for dot colors.
