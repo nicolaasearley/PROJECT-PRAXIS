@@ -10,9 +10,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../theme';
+import { useTheme } from '../../../src/theme';
 import { Card, IconButton, Spacer } from '../../components';
-import { useSessionStore } from '../../core/store';
+import { useSessionStore } from '../../../src/core/store';
 
 type MainStackParamList = {
   Progress: undefined;

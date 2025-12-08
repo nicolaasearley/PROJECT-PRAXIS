@@ -1,6 +1,6 @@
 import React, { ReactNode } from 'react';
 import { View, Text, StyleSheet, ViewStyle, TextStyle, TouchableOpacity } from 'react-native';
-import { useTheme } from '../theme';
+import { useTheme } from '../../src/theme';
 
 interface ChipProps {
   label: string;

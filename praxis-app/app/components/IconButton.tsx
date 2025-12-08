@@ -5,7 +5,7 @@ import {
   ViewStyle,
   ActivityIndicator,
 } from 'react-native';
-import { useTheme } from '../theme';
+import { useTheme } from '../../src/theme';
 
 interface IconButtonProps {
   icon: ReactNode;

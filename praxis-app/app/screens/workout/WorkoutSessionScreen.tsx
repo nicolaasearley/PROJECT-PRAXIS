@@ -11,10 +11,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../theme';
+import { useTheme } from '../../../src/theme';
 import { PraxisButton, IconButton, Spacer } from '../../components';
-import { usePlanStore, useSessionStore } from '../../core/store';
-import type { WorkoutBlock } from '../../core/types';
+import { usePlanStore, useSessionStore } from '../../../src/core/store';
+import type { WorkoutBlock } from '../../../src/core/types';
 import dayjs from 'dayjs';
 
 type MainStackParamList = {

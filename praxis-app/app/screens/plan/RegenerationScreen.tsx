@@ -4,13 +4,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../theme';
+import { useTheme } from '../../../src/theme';
 import { Card, IconButton, PraxisButton, Spacer } from '../../components';
-import { useUserStore } from '../../store/useUserStore';
-import { usePlanStore } from '../../store/usePlanStore';
-import { generateDailyWorkout } from '../../engine/generation/generateDailyWorkout';
-import { generateMicrocycle } from '../../engine/generation/generateMicrocycle';
-import { generateTrainingCycle } from '../../engine/generation/generateTrainingCycle';
+import { useUserStore } from '../../../src/core/store';
+import { usePlanStore } from '../../../src/core/store';
+import { generateDailyWorkout } from '../../../src/engine/generation/generateDailyWorkout';
+import { generateMicrocycle } from '../../../src/engine/generation/generateMicrocycle';
+import { generateTrainingCycle } from '../../../src/engine/generation/generateTrainingCycle';
 
 type MainStackParamList = {
   Home: undefined;

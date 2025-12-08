@@ -1,12 +1,12 @@
 import React, { ReactNode } from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
-import { useTheme } from '../theme';
+import { useTheme } from '../../src/theme';
 
 interface CardProps {
   children: ReactNode;
   style?: ViewStyle;
   variant?: 'default' | 'elevated';
-  padding?: keyof typeof import('../theme/spacing').spacing;
+  padding?: keyof typeof import('../../src/theme/spacing').spacing;
 }
 
 export default function Card({

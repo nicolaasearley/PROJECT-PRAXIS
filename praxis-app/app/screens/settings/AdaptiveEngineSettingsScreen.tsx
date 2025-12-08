@@ -11,10 +11,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../theme';
+import { useTheme } from '../../../src/theme';
 import { PraxisButton, IconButton, Card, Spacer } from '../../components';
-import { useUserStore } from '../../core/store';
-import type { AdaptationMode } from '../../core/types';
+import { useUserStore } from '../../../src/core/store';
+import type { AdaptationMode } from '../../../src/core/types';
 
 type MainStackParamList = {
   Settings: undefined;

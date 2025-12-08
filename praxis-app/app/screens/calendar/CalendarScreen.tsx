@@ -11,10 +11,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { useTheme } from '../../theme';
+import { useTheme } from '../../../src/theme';
 import { PraxisButton, Card, Spacer, Chip } from '../../components';
-import { usePlanStore } from '../../store/usePlanStore';
-import type { WorkoutPlanDay } from '../../core/types';
+import { usePlanStore } from '../../../src/core/store';
+import type { WorkoutPlanDay } from '../../../src/core/types';
 import dayjs from 'dayjs';
 import weekday from 'dayjs/plugin/weekday';
 import isoWeek from 'dayjs/plugin/isoWeek';

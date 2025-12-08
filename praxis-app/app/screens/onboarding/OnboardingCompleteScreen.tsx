@@ -3,11 +3,11 @@ import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, CommonActions } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { useTheme } from '../../theme';
+import { useTheme } from '../../../src/theme';
 import { PraxisButton } from '../../components';
-import { useUserStore } from '../../core/store';
-import { usePlanStore } from '../../core/store';
-import { generateTrainingCycle } from '../../engine/generation/generateTrainingCycle';
+import { useUserStore } from '../../../src/core/store';
+import { usePlanStore } from '../../../src/core/store';
+import { generateTrainingCycle } from '../../../src/engine/generation/generateTrainingCycle';
 
 type AuthStackParamList = {
   Home: undefined;

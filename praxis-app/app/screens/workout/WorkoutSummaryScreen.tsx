@@ -4,15 +4,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../theme';
+import { useTheme } from '../../../src/theme';
 import { Card, IconButton, PraxisButton, Spacer, Chip } from '../../components';
-import { usePlanStore } from '../../core/store';
-import { detectNewPRs } from '../../engine/progress/detectPRs';
+import { usePlanStore } from '../../../src/core/store';
+import { detectNewPRs } from '../../../src/engine/progress/detectPRs';
 import type {
   WorkoutSessionLog,
   PRRecord,
   CompletedSet,
-} from '../../core/types';
+} from '../../../src/core/types';
 import dayjs from 'dayjs';
 
 type MainStackParamList = {

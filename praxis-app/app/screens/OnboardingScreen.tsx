@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
-import { useTheme } from '../theme';
+import { useTheme } from '../../src/theme';
 
 export default function OnboardingScreen() {
   const theme = useTheme();

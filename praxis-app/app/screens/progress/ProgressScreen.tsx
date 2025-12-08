@@ -3,9 +3,9 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { useTheme } from '../../theme';
+import { useTheme } from '../../../src/theme';
 import { Card, PraxisButton, Spacer } from '../../components';
-import { useUserStore } from '../../core/store';
+import { useUserStore } from '../../../src/core/store';
 
 type MainStackParamList = {
   StrengthDetail: undefined;

@@ -12,10 +12,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../theme';
+import { useTheme } from '../../../src/theme';
 import { Card, PraxisButton, Spacer, IconButton, Chip } from '../../components';
-import { useSessionStore } from '../../store/useSessionStore';
-import { usePlanStore } from '../../core/store';
+import { useSessionStore } from '../../../src/core/store';
+import { usePlanStore } from '../../../src/core/store';
 import dayjs from 'dayjs';
 
 type MainStackParamList = {

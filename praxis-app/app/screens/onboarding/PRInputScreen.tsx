@@ -10,9 +10,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { useTheme } from '../../theme';
+import { useTheme } from '../../../src/theme';
 import { PraxisButton } from '../../components';
-import { useUserStore } from '../../core/store';
+import { useUserStore } from '../../../src/core/store';
 
 type AuthStackParamList = {
   GeneratingPlan: undefined;

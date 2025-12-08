@@ -12,9 +12,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../theme';
+import { useTheme } from '../../../src/theme';
 import { Card, IconButton, PraxisButton, Spacer } from '../../components';
-import { useUserStore, usePlanStore } from '../../core/store';
+import { useUserStore, usePlanStore } from '../../../src/core/store';
 
 type MainStackParamList = {
   Home: undefined;
