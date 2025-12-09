@@ -1,22 +1,14 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, CommonActions } from '@react-navigation/native';
-import type { StackNavigationProp } from '@react-navigation/stack';
+import { router } from 'expo-router';
 import { useTheme } from '../../../theme';
 import { useUserStore, usePlanStore } from '../../../core/store';
 import { generateInitialPlan } from '../../../core/engine';
 import dayjs from 'dayjs';
 
-type AuthStackParamList = {
-  Home: undefined;
-};
-
-type NavigationProp = StackNavigationProp<AuthStackParamList>;
-
 export default function GeneratingPlanScreen() {
   const theme = useTheme();
-  const navigation = useNavigation<NavigationProp>();
   const { userProfile } = useUserStore();
   const { setPlanDays } = usePlanStore();
 
@@ -26,12 +18,7 @@ export default function GeneratingPlanScreen() {
         if (!userProfile) {
           // If no user profile, navigate anyway (shouldn't happen in normal flow)
           setTimeout(() => {
-            navigation.dispatch(
-              CommonActions.reset({
-                index: 0,
-                routes: [{ name: 'Home' }],
-              })
-            );
+            router.replace('/home');
           }, 2000);
           return;
         }
@@ -51,29 +38,19 @@ export default function GeneratingPlanScreen() {
           }
 
           // Navigate to Home screen
-          navigation.dispatch(
-            CommonActions.reset({
-              index: 0,
-              routes: [{ name: 'Home' }],
-            })
-          );
+          router.replace('/home');
         }, 2000); // 2 second delay for loading animation
       } catch (error) {
         console.error('Error generating plan:', error);
         // Navigate anyway after delay
         setTimeout(() => {
-          navigation.dispatch(
-            CommonActions.reset({
-              index: 0,
-              routes: [{ name: 'Home' }],
-            })
-          );
+          router.replace('/home');
         }, 2000);
       }
     };
 
     generateAndNavigate();
-  }, [navigation, userProfile, setPlanDays]);
+  }, [userProfile, setPlanDays]);
 
   return (
     <SafeAreaView

@@ -1,30 +1,18 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, CommonActions } from '@react-navigation/native';
-import type { StackNavigationProp } from '@react-navigation/stack';
+import { router } from 'expo-router';
 import { useTheme } from '../../../theme';
 import { PraxisButton } from '../../components';
 import { useUserStore } from '../../../core/store';
 import { usePlanStore } from '../../../core/store';
 import { generateTrainingCycle } from '../../../engine/generation/generateTrainingCycle';
 
-type AuthStackParamList = {
-  Home: undefined;
-};
-
-type NavigationProp = StackNavigationProp<AuthStackParamList>;
-
 export default function OnboardingCompleteScreen() {
   const theme = useTheme();
-  const navigation = useNavigation<NavigationProp>();
   const {
-    goal,
-    experienceLevel,
-    trainingDaysPerWeek,
-    equipmentIds,
-    units,
-    strengthNumbers,
+    preferences,
+    setOnboardingCompleted,
   } = useUserStore();
   const { setPlan } = usePlanStore();
   const [isLoading, setIsLoading] = useState(false);
@@ -39,14 +27,16 @@ export default function OnboardingCompleteScreen() {
       // Generate a 4-week training cycle
       const cycle = generateTrainingCycle({
         startDate,
-        goal,
-        experienceLevel,
-        trainingDaysPerWeek,
-        equipmentIds,
-        units,
+        goal: preferences.goal || 'general',
+        experienceLevel: (preferences.experience as any) || 'beginner',
+        trainingDaysPerWeek: preferences.trainingDays || 3,
+        equipmentIds: preferences.equipment,
+        units: 'metric',
         weeks: 4,
         strengthNumbers:
-          Object.keys(strengthNumbers).length > 0 ? strengthNumbers : undefined,
+          Object.keys(preferences.personalRecords).length > 0
+            ? (preferences.personalRecords as Record<string, number>)
+            : undefined,
       });
 
       // Flatten the weeks array into a single array of WorkoutPlanDay
@@ -54,26 +44,17 @@ export default function OnboardingCompleteScreen() {
 
       // Save to plan store
       setPlan(fullPlan);
+      setOnboardingCompleted();
 
       // TODO: Save cycle metadata to Supabase once backend integration exists.
       // TODO: Store cycle.id for analytics and history tracking.
 
       // Navigate to Home screen
-      navigation.dispatch(
-        CommonActions.reset({
-          index: 0,
-          routes: [{ name: 'Home' }],
-        })
-      );
+      router.replace('/home');
     } catch (error) {
       console.error('Error generating training plan:', error);
       // Navigate anyway, even if generation fails
-      navigation.dispatch(
-        CommonActions.reset({
-          index: 0,
-          routes: [{ name: 'Home' }],
-        })
-      );
+      router.replace('/home');
     } finally {
       setIsLoading(false);
     }

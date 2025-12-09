@@ -4,8 +4,8 @@ import { ThemeProvider } from '../src/theme/ThemeProvider';
 export default function RootLayout() {
   return (
     <ThemeProvider>
-      <Stack>
-        <Stack.Screen name="index" options={{ title: 'Home' }} />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" options={{ title: 'Root' }} />
       </Stack>
     </ThemeProvider>
   );

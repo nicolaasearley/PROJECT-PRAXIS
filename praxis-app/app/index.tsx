@@ -1,30 +1,12 @@
-import { View, Text, StyleSheet } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+import { Redirect } from 'expo-router';
+import { useUserStore } from '../src/core/store';
 
-export default function HomeScreen() {
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Project Praxis</Text>
-      <Text style={styles.subtitle}>Ready to train</Text>
-      <StatusBar style="auto" />
-    </View>
-  );
+export default function Index() {
+  const { hasCompletedOnboarding } = useUserStore();
+
+  if (!hasCompletedOnboarding) {
+    return <Redirect href="/onboarding/welcome" />;
+  }
+
+  return <Redirect href="/start" />;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-  },
-});

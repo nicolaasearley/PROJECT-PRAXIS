@@ -8,21 +8,13 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import type { StackNavigationProp } from '@react-navigation/stack';
+import { router } from 'expo-router';
 import { useTheme } from '../../../theme';
 import { PraxisButton } from '../../components';
 import { useUserStore } from '../../../core/store';
 
-type AuthStackParamList = {
-  GeneratingPlan: undefined;
-};
-
-type NavigationProp = StackNavigationProp<AuthStackParamList>;
-
 export default function PRInputScreen() {
   const theme = useTheme();
-  const navigation = useNavigation<NavigationProp>();
   const { updateStrengthNumbers } = useUserStore();
   const [squat1RM, setSquat1RM] = useState<string>('');
   const [bench1RM, setBench1RM] = useState<string>('');
@@ -49,11 +41,11 @@ export default function PRInputScreen() {
       updateStrengthNumbers(strengthNumbers);
     }
 
-    navigation.navigate('GeneratingPlan');
+    router.push('/onboarding/generating');
   };
 
   const handleSkip = () => {
-    navigation.navigate('GeneratingPlan');
+    router.push('/onboarding/generating');
   };
 
   return (

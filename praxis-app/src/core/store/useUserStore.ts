@@ -1,127 +1,91 @@
 import { create } from 'zustand';
-import type {
-  UserProfile,
-  TrainingPreferences,
-  StrengthNumbers,
-  ReadinessEntry,
-  PRRecord,
-} from '../types';
+import type { PRRecord, ReadinessEntry, UserProfile } from '../types';
 
-interface UserState {
-  // User profile
-  userProfile: UserProfile | null;
-  isAuthenticated: boolean;
-
-  // Readiness tracking
-  currentReadiness: ReadinessEntry | null;
-  readinessHistory: ReadinessEntry[];
-
-  // Personal records
-  personalRecords: PRRecord[];
-
-  // Actions - User Profile
-  setUserProfile: (profile: UserProfile) => void;
-  updateUserProfile: (updates: Partial<UserProfile>) => void;
-  updatePreferences: (preferences: Partial<TrainingPreferences>) => void;
-  updateStrengthNumbers: (numbers: Partial<StrengthNumbers>) => void;
-  clearUserProfile: () => void;
-
-  // Actions - Authentication
-  setAuthenticated: (authenticated: boolean) => void;
-
-  // Actions - Readiness
-  setCurrentReadiness: (readiness: ReadinessEntry) => void;
-  addReadinessEntry: (readiness: ReadinessEntry) => void;
-  setReadinessHistory: (history: ReadinessEntry[]) => void;
-
-  // Actions - Personal Records
-  addPersonalRecord: (pr: PRRecord) => void;
-  updatePersonalRecord: (id: string, updates: Partial<PRRecord>) => void;
-  setPersonalRecords: (prs: PRRecord[]) => void;
-  removePersonalRecord: (id: string) => void;
+export interface UserPreferences {
+  goal: string | null;
+  experience: string | null;
+  timeAvailability: number | null;
+  personalRecords: Record<string, number>;
+  trainingDays: number | null;
+  equipment: string[];
 }
 
-export const useUserStore = create<UserState>((set) => ({
-  // Initial state
+interface UserState {
+  userProfile: UserProfile | null;
+  isAuthenticated: boolean;
+  preferences: UserPreferences;
+  hasCompletedOnboarding: boolean;
+  currentReadiness: ReadinessEntry | null;
+  readinessHistory: ReadinessEntry[];
+  personalRecords: PRRecord[];
+  setUserProfile: (profile: UserProfile) => void;
+  updateUserProfile: (updates: Partial<UserProfile>) => void;
+  updatePreferences: (prefs: Partial<UserPreferences>) => void;
+  updateStrengthNumbers: (records: Record<string, number>) => void;
+  setOnboardingCompleted: () => void;
+  resetOnboarding: () => void;
+  setAuthenticated: (authenticated: boolean) => void;
+  setCurrentReadiness: (entry: ReadinessEntry) => void;
+  addReadinessEntry: (entry: ReadinessEntry) => void;
+  addPersonalRecord: (record: PRRecord) => void;
+  setPersonalRecords: (records: PRRecord[]) => void;
+}
+
+const defaultPreferences: UserPreferences = {
+  goal: null,
+  experience: null,
+  timeAvailability: null,
+  personalRecords: {},
+  trainingDays: null,
+  equipment: [],
+};
+
+export const useUserStore = create<UserState>((set, get) => ({
   userProfile: null,
   isAuthenticated: false,
+  preferences: defaultPreferences,
+  hasCompletedOnboarding: false,
   currentReadiness: null,
   readinessHistory: [],
   personalRecords: [],
 
-  // User Profile actions
   setUserProfile: (profile) => set({ userProfile: profile }),
   updateUserProfile: (updates) =>
     set((state) => ({
       userProfile: state.userProfile
-        ? {
-            ...state.userProfile,
-            ...updates,
-            updatedAt: new Date().toISOString(),
-          }
+        ? { ...state.userProfile, ...updates, updatedAt: new Date().toISOString() }
         : null,
     })),
-  updatePreferences: (preferences) =>
+  updatePreferences: (prefs) =>
     set((state) => ({
-      userProfile: state.userProfile
-        ? {
-            ...state.userProfile,
-            preferences: {
-              ...state.userProfile.preferences,
-              ...preferences,
-            },
-            updatedAt: new Date().toISOString(),
-          }
-        : null,
+      preferences: { ...state.preferences, ...prefs },
     })),
-  updateStrengthNumbers: (numbers) =>
+  updateStrengthNumbers: (records) =>
     set((state) => ({
-      userProfile: state.userProfile
-        ? {
-            ...state.userProfile,
-            strengthNumbers: {
-              ...state.userProfile.strengthNumbers,
-              ...numbers,
-            },
-            updatedAt: new Date().toISOString(),
-          }
-        : null,
+      preferences: {
+        ...state.preferences,
+        personalRecords: { ...state.preferences.personalRecords, ...records },
+      },
     })),
-  clearUserProfile: () =>
+  setOnboardingCompleted: () => set({ hasCompletedOnboarding: true }),
+  resetOnboarding: () =>
     set({
-      userProfile: null,
-      isAuthenticated: false,
+      preferences: defaultPreferences,
+      hasCompletedOnboarding: false,
       currentReadiness: null,
-      readinessHistory: [],
-      personalRecords: [],
     }),
-
-  // Authentication actions
   setAuthenticated: (authenticated) => set({ isAuthenticated: authenticated }),
-
-  // Readiness actions
-  setCurrentReadiness: (readiness) => set({ currentReadiness: readiness }),
-  addReadinessEntry: (readiness) =>
+  setCurrentReadiness: (entry) => set({ currentReadiness: entry }),
+  addReadinessEntry: (entry) =>
     set((state) => ({
-      currentReadiness: readiness,
-      readinessHistory: [...state.readinessHistory, readiness],
+      readinessHistory: [...state.readinessHistory, entry],
+      currentReadiness: entry,
     })),
-  setReadinessHistory: (history) => set({ readinessHistory: history }),
-
-  // Personal Records actions
-  addPersonalRecord: (pr) =>
+  addPersonalRecord: (record) =>
     set((state) => ({
-      personalRecords: [...state.personalRecords, pr],
+      personalRecords: [...state.personalRecords, record],
     })),
-  updatePersonalRecord: (id, updates) =>
-    set((state) => ({
-      personalRecords: state.personalRecords.map((pr) =>
-        pr.id === id ? { ...pr, ...updates } : pr
-      ),
-    })),
-  setPersonalRecords: (prs) => set({ personalRecords: prs }),
-  removePersonalRecord: (id) =>
-    set((state) => ({
-      personalRecords: state.personalRecords.filter((pr) => pr.id !== id),
-    })),
+  setPersonalRecords: (records) => set({ personalRecords: records }),
 }));
+
+export default useUserStore;

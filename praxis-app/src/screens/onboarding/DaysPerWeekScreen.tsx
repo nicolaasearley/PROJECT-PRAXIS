@@ -1,23 +1,15 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import type { StackNavigationProp } from '@react-navigation/stack';
+import { router } from 'expo-router';
 import { useTheme } from '../../../theme';
 import { PraxisButton } from '../../components';
 import { useUserStore } from '../../../core/store';
-
-type AuthStackParamList = {
-  Equipment: undefined;
-};
-
-type NavigationProp = StackNavigationProp<AuthStackParamList>;
 
 const daysOptions = [3, 4, 5, 6, 7];
 
 export default function DaysPerWeekScreen() {
   const theme = useTheme();
-  const navigation = useNavigation<NavigationProp>();
   const { updatePreferences } = useUserStore();
   const [selectedDays, setSelectedDays] = useState<number | null>(null);
 
@@ -27,8 +19,8 @@ export default function DaysPerWeekScreen() {
 
   const handleContinue = () => {
     if (selectedDays !== null) {
-      updatePreferences({ trainingDaysPerWeek: selectedDays });
-      navigation.navigate('Equipment');
+      updatePreferences({ trainingDays: selectedDays });
+      router.push('/onboarding/equipment');
     }
   };
 

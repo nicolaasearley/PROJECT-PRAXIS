@@ -1,23 +1,13 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import type { StackNavigationProp } from '@react-navigation/stack';
+import { router } from 'expo-router';
 import { useTheme } from '../../theme';
 import { Card, PraxisButton, Spacer, Chip } from '../../components';
 import { usePlanStore } from '../../core/store';
 
-type MainStackParamList = {
-  WorkoutOverview: { planDayId?: string } | undefined;
-  PlanRegeneration: undefined;
-  Calendar: undefined;
-};
-
-type NavigationProp = StackNavigationProp<MainStackParamList>;
-
 export default function HomeScreen() {
   const theme = useTheme();
-  const navigation = useNavigation<NavigationProp>();
   const { plan, getTodayPlan } = usePlanStore();
 
   const todayWorkout = getTodayPlan();
@@ -25,26 +15,29 @@ export default function HomeScreen() {
   // Handle navigation to WorkoutOverview
   const handleOpenWorkout = () => {
     if (todayWorkout) {
-      navigation.navigate('WorkoutOverview', { planDayId: todayWorkout.id });
+      router.push({
+        pathname: '/workout/overview',
+        params: { planDayId: todayWorkout.id },
+      });
     } else {
       // Fallback if workout is missing
-      navigation.navigate('WorkoutOverview');
+      router.push('/workout/overview');
     }
   };
 
   // Handle navigation to plan generation
   const handleGeneratePlan = () => {
-    navigation.navigate('PlanRegeneration');
+    router.push('/plan/plan-regeneration');
   };
 
   // Handle navigation to calendar/week view
   const handleViewWeek = () => {
-    navigation.navigate('Calendar');
+    router.push('/calendar');
   };
 
   // Handle regeneration
   const handleRegenerateWeek = () => {
-    navigation.navigate('PlanRegeneration');
+    router.push('/plan/plan-regeneration');
   };
 
   return (

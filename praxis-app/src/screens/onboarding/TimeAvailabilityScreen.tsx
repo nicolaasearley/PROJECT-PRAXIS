@@ -1,41 +1,29 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import type { StackNavigationProp } from '@react-navigation/stack';
+import { router } from 'expo-router';
 import { useTheme } from '../../../theme';
 import { PraxisButton } from '../../components';
 import { useUserStore } from '../../../core/store';
-import type { TimeAvailability } from '../../../core/types';
-
-type AuthStackParamList = {
-  PRInput: undefined;
-};
-
-type NavigationProp = StackNavigationProp<AuthStackParamList>;
-
-const timeOptions: { label: string; value: TimeAvailability }[] = [
-  { label: 'Short (30–40 min)', value: 'short' },
-  { label: 'Standard (45–60 min)', value: 'standard' },
-  { label: 'Full (75+ min)', value: 'full' },
+const timeOptions: { label: string; value: number }[] = [
+  { label: 'Short (30–40 min)', value: 40 },
+  { label: 'Standard (45–60 min)', value: 60 },
+  { label: 'Full (75+ min)', value: 90 },
 ];
 
 export default function TimeAvailabilityScreen() {
   const theme = useTheme();
-  const navigation = useNavigation<NavigationProp>();
   const { updatePreferences } = useUserStore();
-  const [selectedTime, setSelectedTime] = useState<TimeAvailability | null>(
-    null
-  );
+  const [selectedTime, setSelectedTime] = useState<number | null>(null);
 
-  const handleSelectTime = (time: TimeAvailability) => {
+  const handleSelectTime = (time: number) => {
     setSelectedTime(time);
   };
 
   const handleContinue = () => {
     if (selectedTime) {
       updatePreferences({ timeAvailability: selectedTime });
-      navigation.navigate('PRInput');
+      router.push('/onboarding/pr-input');
     }
   };
 

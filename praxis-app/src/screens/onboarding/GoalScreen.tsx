@@ -1,18 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import type { StackNavigationProp } from '@react-navigation/stack';
+import { router } from 'expo-router';
 import { useTheme } from '../../../theme';
 import { PraxisButton } from '../../components';
 import { useUserStore } from '../../../core/store';
 import type { TrainingGoal } from '../../../core/types';
-
-type AuthStackParamList = {
-  DaysPerWeek: undefined;
-};
-
-type NavigationProp = StackNavigationProp<AuthStackParamList>;
 
 const goalOptions: { label: string; value: TrainingGoal }[] = [
   { label: 'Build Strength', value: 'strength' },
@@ -23,7 +16,6 @@ const goalOptions: { label: string; value: TrainingGoal }[] = [
 
 export default function GoalScreen() {
   const theme = useTheme();
-  const navigation = useNavigation<NavigationProp>();
   const { updatePreferences } = useUserStore();
   const [selectedGoal, setSelectedGoal] = useState<TrainingGoal | null>(null);
 
@@ -34,7 +26,7 @@ export default function GoalScreen() {
   const handleContinue = () => {
     if (selectedGoal) {
       updatePreferences({ goal: selectedGoal });
-      navigation.navigate('DaysPerWeek');
+      router.push('/onboarding/days-per-week');
     }
   };
 

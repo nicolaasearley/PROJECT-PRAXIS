@@ -1,27 +1,13 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-import type { StackNavigationProp } from '@react-navigation/stack';
+import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../../theme';
 import { Card, PraxisButton, Spacer, IconButton, Chip } from '../../components';
 import { usePlanStore } from '../../../core/store';
 import { useSessionStore } from '../../../core/store';
 import dayjs from 'dayjs';
-
-type MainStackParamList = {
-  WorkoutOverview: { planDayId?: string } | undefined;
-  ActiveWorkout: { planDayId: string } | undefined;
-  Home: undefined;
-};
-
-type WorkoutOverviewRouteProp = RouteProp<
-  MainStackParamList,
-  'WorkoutOverview'
->;
-
-type NavigationProp = StackNavigationProp<MainStackParamList>;
 
 /**
  * Format ISO date string to readable format (e.g., "Monday, Feb 12")
@@ -33,9 +19,10 @@ function formatDate(dateString: string): string {
 
 export default function WorkoutOverviewScreen() {
   const theme = useTheme();
-  const navigation = useNavigation<NavigationProp>();
-  const route = useRoute<WorkoutOverviewRouteProp>();
-  const { planDayId } = route.params || {};
+  const params = useLocalSearchParams<{ planDayId?: string | string[] }>();
+  const planDayId = Array.isArray(params.planDayId)
+    ? params.planDayId[0]
+    : params.planDayId;
   const { plan } = usePlanStore();
   const { startSession } = useSessionStore();
 
@@ -51,13 +38,12 @@ export default function WorkoutOverviewScreen() {
     startSession(planDayId);
 
     // Navigate to ActiveWorkout screen
-    // TODO: Verify route name matches navigation setup
-    navigation.navigate('ActiveWorkout', { planDayId });
+    router.push({ pathname: '/workout/active', params: { planDayId } });
   };
 
   // Handle back navigation
   const handleBack = () => {
-    navigation.navigate('Home');
+    router.replace('/home');
   };
 
   // Error state: Workout not found

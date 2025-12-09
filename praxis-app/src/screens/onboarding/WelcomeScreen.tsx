@@ -1,23 +1,15 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import type { StackNavigationProp } from '@react-navigation/stack';
+import { router } from 'expo-router';
 import { useTheme } from '../../../theme';
 import { PraxisButton } from '../../components';
 
-type AuthStackParamList = {
-  Goal: undefined;
-};
-
-type NavigationProp = StackNavigationProp<AuthStackParamList>;
-
 export default function WelcomeScreen() {
   const theme = useTheme();
-  const navigation = useNavigation<NavigationProp>();
 
   const handleContinue = () => {
-    navigation.navigate('Goal');
+    router.push('/onboarding/goal');
   };
 
   return (

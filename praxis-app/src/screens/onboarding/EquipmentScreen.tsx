@@ -7,18 +7,11 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import type { StackNavigationProp } from '@react-navigation/stack';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../../theme';
 import { PraxisButton } from '../../components';
 import { useUserStore } from '../../../core/store';
-
-type AuthStackParamList = {
-  Experience: undefined;
-};
-
-type NavigationProp = StackNavigationProp<AuthStackParamList>;
 
 const equipmentOptions: { id: string; name: string }[] = [
   { id: 'barbell', name: 'Barbell & Plates' },
@@ -34,7 +27,6 @@ const equipmentOptions: { id: string; name: string }[] = [
 
 export default function EquipmentScreen() {
   const theme = useTheme();
-  const navigation = useNavigation<NavigationProp>();
   const { updatePreferences } = useUserStore();
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>(
     []
@@ -51,8 +43,8 @@ export default function EquipmentScreen() {
 
   const handleContinue = () => {
     if (selectedEquipmentIds.length > 0) {
-      updatePreferences({ equipmentIds: selectedEquipmentIds });
-      navigation.navigate('Experience');
+      updatePreferences({ equipment: selectedEquipmentIds });
+      router.push('/onboarding/experience');
     }
   };
 
