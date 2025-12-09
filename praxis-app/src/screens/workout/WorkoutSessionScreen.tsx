@@ -16,6 +16,7 @@ import { PraxisButton, IconButton, Spacer } from '../../components';
 import { usePlanStore, useSessionStore } from '../../../core/store';
 import type { WorkoutBlock } from '../../../core/types';
 import dayjs from 'dayjs';
+import { trackEvent, trackScreen } from '../../core/analytics';
 
 type MainStackParamList = {
   WorkoutSummary: undefined;
@@ -73,6 +74,11 @@ export default function WorkoutSessionScreen() {
 
   const blocks = workoutPlan?.blocks || [];
   const currentBlock = blocks[currentBlockIndex];
+
+  useEffect(() => {
+    trackScreen('workout_session');
+    trackEvent('workout_started', { date: todayDate, blockCount: blocks.length });
+  }, [todayDate, blocks.length]);
 
   // Filter out warmup and cooldown for navigation (or include them - let's include)
   const navigationBlocks = blocks.filter(
@@ -212,6 +218,10 @@ export default function WorkoutSessionScreen() {
 
   const handleCompleteCooldown = () => {
     // Navigate to summary
+    trackEvent('workout_completed', {
+      date: todayDate,
+      blocksCompleted: blocks.length,
+    });
     navigation.navigate('WorkoutSummary');
   };
 
@@ -227,6 +237,10 @@ export default function WorkoutSessionScreen() {
       setSelectedRPE(null);
     } else {
       // All blocks complete, navigate to summary
+      trackEvent('workout_completed', {
+        date: todayDate,
+        blocksCompleted: blocks.length,
+      });
       navigation.navigate('WorkoutSummary');
     }
   };

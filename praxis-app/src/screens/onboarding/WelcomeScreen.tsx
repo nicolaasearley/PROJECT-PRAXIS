@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useTheme } from '../../../theme';
 import { PraxisButton } from '../../components';
+import { trackEvent, trackScreen } from '../../../core/analytics';
 
 type AuthStackParamList = {
   Goal: undefined;
@@ -16,8 +17,14 @@ export default function WelcomeScreen() {
   const theme = useTheme();
   const navigation = useNavigation<NavigationProp>();
 
+  useEffect(() => {
+    trackScreen('onboarding_welcome');
+    trackEvent('onboarding_step_viewed', { step: 'welcome', position: 1 });
+  }, []);
+
   const handleContinue = () => {
     navigation.navigate('Goal');
+    trackEvent('onboarding_step_completed', { step: 'welcome', position: 1 });
   };
 
   return (

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -7,6 +7,7 @@ import { useTheme } from '../../../theme';
 import { PraxisButton } from '../../components';
 import { useUserStore } from '../../../core/store';
 import type { TrainingGoal } from '../../../core/types';
+import { trackEvent, trackScreen } from '../../../core/analytics';
 
 type AuthStackParamList = {
   DaysPerWeek: undefined;
@@ -27,6 +28,11 @@ export default function GoalScreen() {
   const { updatePreferences } = useUserStore();
   const [selectedGoal, setSelectedGoal] = useState<TrainingGoal | null>(null);
 
+  useEffect(() => {
+    trackScreen('onboarding_goal');
+    trackEvent('onboarding_step_viewed', { step: 'goal', position: 2 });
+  }, []);
+
   const handleSelectGoal = (goal: TrainingGoal) => {
     setSelectedGoal(goal);
   };
@@ -34,6 +40,11 @@ export default function GoalScreen() {
   const handleContinue = () => {
     if (selectedGoal) {
       updatePreferences({ goal: selectedGoal });
+      trackEvent('onboarding_step_completed', {
+        step: 'goal',
+        position: 2,
+        goal: selectedGoal,
+      });
       navigation.navigate('DaysPerWeek');
     }
   };

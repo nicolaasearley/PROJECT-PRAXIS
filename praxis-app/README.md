@@ -70,6 +70,8 @@ This project uses:
 - Zustand for global state management (stores in `/stores` folder)
 - ESLint + Prettier for code quality
 
+Operational runbooks for builds, releases, and OTA updates live in [`docs/ops.md`](docs/ops.md).
+
 ## Next Steps
 
 1. Add more screens in the `/app` directory
