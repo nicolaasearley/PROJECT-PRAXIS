@@ -3,9 +3,9 @@ import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, CommonActions } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { useTheme } from '../../../theme';
-import { useUserStore, usePlanStore } from '../../../core/store';
-import { generateInitialPlan } from '../../../core/engine';
+import { useTheme } from '@/theme';
+import { useUserStore, usePlanStore } from '@/core/store';
+import { generateInitialPlan } from '@/core/engine';
 import dayjs from 'dayjs';
 
 type AuthStackParamList = {

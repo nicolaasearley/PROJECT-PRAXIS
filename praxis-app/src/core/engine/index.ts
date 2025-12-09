@@ -1,11 +1,16 @@
 import type {
-  ReadinessInputs,
+  AdaptationMode,
+  PRRecord,
   ReadinessEntry,
+  ReadinessInputs,
   UserProfile,
   WorkoutPlanDay,
   WorkoutSessionLog,
-  PRRecord,
-} from '../types';
+} from '@/core/types';
+
+const clamp = (value: number, min: number, max: number): number => {
+  return Math.min(Math.max(value, min), max);
+};
 
 /**
  * Calculate readiness score based on daily inputs
@@ -13,14 +18,26 @@ import type {
  * @returns Readiness score from 0-100
  */
 export function calculateReadiness(inputs: ReadinessInputs): number {
-  // TODO: Implement readiness calculation logic
-  // Factors to consider:
-  // - Sleep quality (1-5 scale)
-  // - Energy level (1-5 scale)
-  // - Soreness level (1-5 scale, inverted - higher soreness = lower readiness)
-  // - Stress level (1-5 scale, inverted - higher stress = lower readiness)
-  // - Time availability (short/standard/full)
-  throw new Error('calculateReadiness not implemented');
+  const { sleepQuality, energy, soreness, stress, timeAvailability } = inputs;
+  const availabilityWeight: Record<ReadinessInputs['timeAvailability'], number> = {
+    short: 0.9,
+    standard: 1,
+    full: 1.05,
+  };
+
+  const normalizedSleep = clamp(sleepQuality, 1, 5) / 5;
+  const normalizedEnergy = clamp(energy, 1, 5) / 5;
+  const normalizedSoreness = 1 - clamp(soreness, 1, 5) / 5;
+  const normalizedStress = 1 - clamp(stress, 1, 5) / 5;
+
+  const readinessRaw =
+    (normalizedSleep * 0.3 +
+      normalizedEnergy * 0.3 +
+      normalizedSoreness * 0.2 +
+      normalizedStress * 0.2) *
+    availabilityWeight[timeAvailability];
+
+  return Math.round(clamp(readinessRaw * 100, 0, 100));
 }
 
 /**
@@ -34,15 +51,80 @@ export function generateInitialPlan(
   userProfile: UserProfile,
   startDate: string
 ): WorkoutPlanDay[] {
-  // TODO: Implement initial plan generation logic
-  // Factors to consider:
-  // - Training goal (strength/conditioning/hybrid/general)
-  // - Experience level (beginner/intermediate/advanced)
-  // - Training days per week (3-7)
-  // - Time availability (short/standard/full)
-  // - Available equipment
-  // - Strength numbers (if provided)
-  throw new Error('generateInitialPlan not implemented');
+  const trainingDays = userProfile.preferences.trainingDaysPerWeek;
+  const durationEstimate =
+    userProfile.preferences.timeAvailability === 'short'
+      ? 35
+      : userProfile.preferences.timeAvailability === 'full'
+        ? 75
+        : 55;
+
+  return Array.from({ length: trainingDays }).map((_, index) => {
+    const date = new Date(startDate);
+    date.setDate(date.getDate() + index);
+    const isoDate = date.toISOString().slice(0, 10);
+
+    const focusTags =
+      userProfile.preferences.goal === 'strength'
+        ? ['strength']
+        : userProfile.preferences.goal === 'conditioning'
+          ? ['engine']
+          : ['hybrid'];
+
+    const strengthBlockId = `strength-${index}`;
+    return {
+      id: `plan-${userProfile.id}-${isoDate}`,
+      userId: userProfile.id,
+      date: isoDate,
+      dayIndex: index,
+      focusTags,
+      estimatedDurationMinutes: durationEstimate,
+      adjustedForReadiness: false,
+      createdAt: new Date().toISOString(),
+      blocks: [
+        {
+          id: strengthBlockId,
+          type: 'strength',
+          title: 'Main Strength',
+          estimatedDurationMinutes: Math.round(durationEstimate * 0.5),
+          strengthMain: {
+            exerciseId: 'barbell_back_squat',
+            sets: [
+              { targetReps: 5, targetPercent1RM: 75 },
+              { targetReps: 5, targetPercent1RM: 75 },
+              { targetReps: 5, targetPercent1RM: 75 },
+            ],
+          },
+        },
+        {
+          id: `accessory-${index}`,
+          type: 'accessory',
+          title: 'Accessory',
+          accessory: [
+            {
+              exerciseId: 'db_row',
+              sets: [
+                { targetReps: 12 },
+                { targetReps: 12 },
+              ],
+            },
+          ],
+        },
+        {
+          id: `engine-${index}`,
+          type: 'conditioning',
+          title: 'Engine',
+          conditioning: {
+            mode: 'interval',
+            workSeconds: 45,
+            restSeconds: 30,
+            rounds: 8,
+            targetZone: 'Z3',
+          },
+        },
+      ],
+    } satisfies WorkoutPlanDay;
+  });
 }
 
 /**
@@ -56,20 +138,49 @@ export function generateInitialPlan(
 export function adjustWorkoutForToday(
   plannedWorkout: WorkoutPlanDay,
   readinessScore: number,
-  adaptationMode: 'conservative' | 'automatic' | 'aggressive'
+  adaptationMode: AdaptationMode
 ): WorkoutPlanDay {
-  // TODO: Implement workout adjustment logic
-  // When readiness is low:
-  // - Reduce strength intensity (%1RM)
-  // - Reduce conditioning load/volume
-  // - Reduce accessory volume
-  // - Replace high-intensity components with mobility/technique
-  // When readiness is high:
-  // - Increase intensity
-  // - Keep volume stable
-  // - Add optional finisher
-  // Consider adaptationMode for scaling aggressiveness
-  throw new Error('adjustWorkoutForToday not implemented');
+  const adjustmentScale = adaptationMode === 'aggressive' ? 1.15 : adaptationMode === 'conservative' ? 0.85 : 1;
+  const readinessMultiplier = readinessScore >= 80 ? 1.05 : readinessScore <= 40 ? 0.85 : 1;
+  const finalScale = clamp(adjustmentScale * readinessMultiplier, 0.7, 1.25);
+
+  const adjustedBlocks = plannedWorkout.blocks.map((block) => {
+    if (block.strengthMain) {
+      const scaledSets = block.strengthMain.sets.map((set) => ({
+        ...set,
+        targetPercent1RM: set.targetPercent1RM
+          ? clamp(Math.round(set.targetPercent1RM * finalScale), 50, 95)
+          : undefined,
+      }));
+
+      return {
+        ...block,
+        strengthMain: { ...block.strengthMain, sets: scaledSets },
+      };
+    }
+
+    if (block.conditioning) {
+      const scaledRounds = block.conditioning.rounds
+        ? Math.max(1, Math.round(block.conditioning.rounds * finalScale))
+        : undefined;
+
+      return {
+        ...block,
+        conditioning: { ...block.conditioning, rounds: scaledRounds },
+      };
+    }
+
+    return block;
+  });
+
+  return {
+    ...plannedWorkout,
+    blocks: adjustedBlocks,
+    adjustedForReadiness: true,
+    estimatedDurationMinutes: Math.round(
+      plannedWorkout.estimatedDurationMinutes * (1 + (finalScale - 1) * 0.3)
+    ),
+  };
 }
 
 /**
@@ -83,14 +194,42 @@ export function detectNewPRs(
   sessionLog: WorkoutSessionLog,
   previousPRs: PRRecord[]
 ): PRRecord[] {
-  // TODO: Implement PR detection logic
-  // For each completed strength set:
-  // 1. Calculate estimated 1RM using estimate1RM()
-  // 2. Compare against previous PR for that exercise
-  // 3. If new estimated 1RM > previous, create new PRRecord
-  // 4. Calculate changeFromPrevious delta
-  // Consider: Same exercise variations, similar movement patterns
-  throw new Error('detectNewPRs not implemented');
+  const bestByExercise = new Map<string, PRRecord>();
+  previousPRs.forEach((pr) => {
+    const currentBest = bestByExercise.get(pr.exerciseId);
+    if (!currentBest || pr.estimated1RM > currentBest.estimated1RM) {
+      bestByExercise.set(pr.exerciseId, pr);
+    }
+  });
+
+  const newPRs: PRRecord[] = [];
+
+  sessionLog.completedSets.forEach((set) => {
+    if (!set.weight || !set.reps) {
+      return;
+    }
+
+    const estimated1RM = estimate1RM(set.weight, set.reps, set.rpe);
+    const bestForExercise = bestByExercise.get(set.exerciseId);
+
+    if (!bestForExercise || estimated1RM > bestForExercise.estimated1RM) {
+      const prRecord: PRRecord = {
+        id: `${sessionLog.id}-${set.exerciseId}-${set.setIndex}`,
+        userId: sessionLog.userId,
+        exerciseId: set.exerciseId,
+        date: sessionLog.date,
+        estimated1RM,
+        changeFromPrevious: bestForExercise
+          ? estimated1RM - bestForExercise.estimated1RM
+          : undefined,
+      };
+
+      bestByExercise.set(set.exerciseId, prRecord);
+      newPRs.push(prRecord);
+    }
+  });
+
+  return newPRs;
 }
 
 /**
@@ -101,16 +240,20 @@ export function detectNewPRs(
  * @param rpe - Optional RPE (Rate of Perceived Exertion) for more accurate estimation
  * @returns Estimated 1RM value
  */
-export function estimate1RM(
-  weight: number,
-  reps: number,
-  rpe?: number
-): number {
-  // TODO: Implement 1RM estimation logic
-  // Formula options:
-  // - Epley: weight * (1 + reps / 30)
-  // - Brzycki: weight * (36 / (37 - reps))
-  // - Consider RPE if provided for more accurate estimation
-  // - Handle edge cases (reps = 0, reps > 30, etc.)
-  throw new Error('estimate1RM not implemented');
+export function estimate1RM(weight: number, reps: number, rpe?: number): number {
+  if (reps <= 0 || weight <= 0) {
+    return 0;
+  }
+
+  const repsClamped = clamp(reps, 1, 20);
+  const epleyEstimate = weight * (1 + repsClamped / 30);
+  const brzyckiEstimate = weight * (36 / (37 - repsClamped));
+  const averageEstimate = (epleyEstimate + brzyckiEstimate) / 2;
+
+  if (rpe) {
+    const fatigueModifier = clamp(1 + (10 - rpe) * 0.02, 0.85, 1.1);
+    return Math.round(averageEstimate * fatigueModifier);
+  }
+
+  return Math.round(averageEstimate);
 }

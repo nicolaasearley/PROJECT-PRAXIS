@@ -1,228 +1,114 @@
+import dayjs from 'dayjs';
 import { create } from 'zustand';
 import type {
-  WorkoutSessionLog,
   CompletedSet,
   ConditioningRoundLog,
-} from '../types';
+  WorkoutSessionLog,
+} from '@/core/types';
 
 interface SessionState {
-  // Current active session
   activeSession: WorkoutSessionLog | null;
   isSessionActive: boolean;
-
-  // Session history
   sessionHistory: WorkoutSessionLog[];
-
-  // Actions - Session lifecycle
-  startSession: (session: WorkoutSessionLog) => void;
-  endSession: () => void;
-  updateActiveSession: (updates: Partial<WorkoutSessionLog>) => void;
-
-  // Actions - Set logging
-  addCompletedSet: (set: CompletedSet) => void;
-  updateCompletedSet: (
-    blockId: string,
-    setIndex: number,
-    updates: Partial<CompletedSet>
+  startSession: (planDayId: string, userId?: string) => void;
+  logStrengthSet: (
+    params: Omit<CompletedSet, 'completedAt'> & { completedAt?: string }
   ) => void;
-  removeCompletedSet: (blockId: string, setIndex: number) => void;
-  clearCompletedSets: () => void;
-
-  // Actions - Conditioning rounds
-  addConditioningRound: (round: ConditioningRoundLog) => void;
-  updateConditioningRound: (
-    blockId: string,
-    roundIndex: number,
-    updates: Partial<ConditioningRoundLog>
-  ) => void;
-  removeConditioningRound: (blockId: string, roundIndex: number) => void;
-  clearConditioningRounds: () => void;
-
-  // Actions - Session metadata
-  setSessionRPE: (rpe: number) => void;
-  setSessionNotes: (notes: string) => void;
-  setSessionVolume: (volume: number) => void;
-
-  // Actions - Session history
+  logConditioningRound: (round: ConditioningRoundLog) => void;
+  finishSession: () => WorkoutSessionLog | null;
+  cancelSession: () => void;
   addSessionToHistory: (session: WorkoutSessionLog) => void;
-  setSessionHistory: (sessions: WorkoutSessionLog[]) => void;
   getSessionById: (id: string) => WorkoutSessionLog | null;
-
-  // Helpers
-  getCompletedSetsByBlock: (blockId: string) => CompletedSet[];
-  getConditioningRoundsByBlock: (blockId: string) => ConditioningRoundLog[];
 }
 
+const generateSessionId = (): string => {
+  return `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+};
+
 export const useSessionStore = create<SessionState>((set, get) => ({
-  // Initial state
   activeSession: null,
   isSessionActive: false,
   sessionHistory: [],
 
-  // Session lifecycle actions
-  startSession: (session) =>
-    set({
-      activeSession: session,
-      isSessionActive: true,
-    }),
-  endSession: () => {
-    const state = get();
-    if (state.activeSession) {
-      const completedSession: WorkoutSessionLog = {
-        ...state.activeSession,
-        endedAt: new Date().toISOString(),
+  startSession: (planDayId, userId = 'user-placeholder') => {
+    const now = new Date().toISOString();
+    const today = dayjs().format('YYYY-MM-DD');
+
+    const newSession: WorkoutSessionLog = {
+      id: generateSessionId(),
+      userId,
+      planDayId,
+      date: today,
+      startedAt: now,
+      endedAt: '',
+      completedSets: [],
+      conditioningRounds: [],
+      createdAt: now,
+    };
+
+    set({ activeSession: newSession, isSessionActive: true });
+  },
+
+  logStrengthSet: (params) => {
+    set((state) => {
+      if (!state.activeSession) {
+        return state;
+      }
+
+      const completedSet: CompletedSet = {
+        ...params,
+        completedAt: params.completedAt ?? new Date().toISOString(),
       };
-      set((prev) => ({
-        activeSession: null,
-        isSessionActive: false,
-        sessionHistory: [...prev.sessionHistory, completedSession],
-      }));
+
+      return {
+        activeSession: {
+          ...state.activeSession,
+          completedSets: [...state.activeSession.completedSets, completedSet],
+        },
+      };
+    });
+  },
+
+  logConditioningRound: (round) =>
+    set((state) => {
+      if (!state.activeSession) {
+        return state;
+      }
+
+      return {
+        activeSession: {
+          ...state.activeSession,
+          conditioningRounds: [...state.activeSession.conditioningRounds, round],
+        },
+      };
+    }),
+
+  finishSession: () => {
+    const { activeSession, sessionHistory } = get();
+    if (!activeSession) {
+      return null;
     }
+
+    const completedSession: WorkoutSessionLog = {
+      ...activeSession,
+      endedAt: new Date().toISOString(),
+    };
+
+    set({
+      activeSession: null,
+      isSessionActive: false,
+      sessionHistory: [...sessionHistory, completedSession],
+    });
+
+    return completedSession;
   },
-  updateActiveSession: (updates) =>
-    set((state) => ({
-      activeSession: state.activeSession
-        ? { ...state.activeSession, ...updates }
-        : null,
-    })),
 
-  // Set logging actions
-  addCompletedSet: (set) =>
-    set((state) => ({
-      activeSession: state.activeSession
-        ? {
-            ...state.activeSession,
-            completedSets: [...state.activeSession.completedSets, set],
-          }
-        : null,
-    })),
-  updateCompletedSet: (blockId, setIndex, updates) =>
-    set((state) => ({
-      activeSession: state.activeSession
-        ? {
-            ...state.activeSession,
-            completedSets: state.activeSession.completedSets.map((s) =>
-              s.blockId === blockId && s.setIndex === setIndex
-                ? { ...s, ...updates }
-                : s
-            ),
-          }
-        : null,
-    })),
-  removeCompletedSet: (blockId, setIndex) =>
-    set((state) => ({
-      activeSession: state.activeSession
-        ? {
-            ...state.activeSession,
-            completedSets: state.activeSession.completedSets.filter(
-              (s) => !(s.blockId === blockId && s.setIndex === setIndex)
-            ),
-          }
-        : null,
-    })),
-  clearCompletedSets: () =>
-    set((state) => ({
-      activeSession: state.activeSession
-        ? {
-            ...state.activeSession,
-            completedSets: [],
-          }
-        : null,
-    })),
+  cancelSession: () => set({ activeSession: null, isSessionActive: false }),
 
-  // Conditioning rounds actions
-  addConditioningRound: (round) =>
-    set((state) => ({
-      activeSession: state.activeSession
-        ? {
-            ...state.activeSession,
-            conditioningRounds: [
-              ...state.activeSession.conditioningRounds,
-              round,
-            ],
-          }
-        : null,
-    })),
-  updateConditioningRound: (blockId, roundIndex, updates) =>
-    set((state) => ({
-      activeSession: state.activeSession
-        ? {
-            ...state.activeSession,
-            conditioningRounds: state.activeSession.conditioningRounds.map(
-              (r) =>
-                r.blockId === blockId && r.roundIndex === roundIndex
-                  ? { ...r, ...updates }
-                  : r
-            ),
-          }
-        : null,
-    })),
-  removeConditioningRound: (blockId, roundIndex) =>
-    set((state) => ({
-      activeSession: state.activeSession
-        ? {
-            ...state.activeSession,
-            conditioningRounds: state.activeSession.conditioningRounds.filter(
-              (r) => !(r.blockId === blockId && r.roundIndex === roundIndex)
-            ),
-          }
-        : null,
-    })),
-  clearConditioningRounds: () =>
-    set((state) => ({
-      activeSession: state.activeSession
-        ? {
-            ...state.activeSession,
-            conditioningRounds: [],
-          }
-        : null,
-    })),
-
-  // Session metadata actions
-  setSessionRPE: (rpe) =>
-    set((state) => ({
-      activeSession: state.activeSession
-        ? { ...state.activeSession, sessionRpe: rpe }
-        : null,
-    })),
-  setSessionNotes: (notes) =>
-    set((state) => ({
-      activeSession: state.activeSession
-        ? { ...state.activeSession, notes }
-        : null,
-    })),
-  setSessionVolume: (volume) =>
-    set((state) => ({
-      activeSession: state.activeSession
-        ? { ...state.activeSession, totalVolume: volume }
-        : null,
-    })),
-
-  // Session history actions
   addSessionToHistory: (session) =>
-    set((state) => ({
-      sessionHistory: [...state.sessionHistory, session],
-    })),
-  setSessionHistory: (sessions) => set({ sessionHistory: sessions }),
-  getSessionById: (id) => {
-    const state = get();
-    return state.sessionHistory.find((s) => s.id === id) || null;
-  },
+    set((state) => ({ sessionHistory: [...state.sessionHistory, session] })),
 
-  // Helper functions
-  getCompletedSetsByBlock: (blockId) => {
-    const state = get();
-    return (
-      state.activeSession?.completedSets.filter((s) => s.blockId === blockId) ||
-      []
-    );
-  },
-  getConditioningRoundsByBlock: (blockId) => {
-    const state = get();
-    return (
-      state.activeSession?.conditioningRounds.filter(
-        (r) => r.blockId === blockId
-      ) || []
-    );
-  },
+  getSessionById: (id) => get().sessionHistory.find((session) => session.id === id) || null,
 }));
+
+export default useSessionStore;

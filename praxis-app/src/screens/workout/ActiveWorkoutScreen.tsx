@@ -12,15 +12,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../../theme';
-import { Card, PraxisButton, Spacer, IconButton, Chip } from '../../components';
-import { useSessionStore } from '../../../core/store';
-import { usePlanStore } from '../../../core/store';
+import { useTheme } from '@/theme';
+import { Card, PraxisButton, Spacer, IconButton, Chip } from '@/components';
+import { useSessionStore, usePlanStore } from '@/core/store';
+import type { WorkoutSessionLog } from '@/core/types';
 import dayjs from 'dayjs';
 
 type MainStackParamList = {
   ActiveWorkout: { planDayId: string } | undefined;
-  WorkoutSummary: { session: any } | undefined;
+  WorkoutSummary: { session: WorkoutSessionLog } | undefined;
   Home: undefined;
 };
 

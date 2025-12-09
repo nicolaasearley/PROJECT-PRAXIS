@@ -10,9 +10,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../../theme';
-import { PraxisButton, IconButton, Card, Spacer } from '../../components';
-import { useUserStore } from '../../../core/store';
+import { useTheme } from '@/theme';
+import { PraxisButton, IconButton, Card, Spacer } from '@/components';
+import { useUserStore } from '@/core/store';
+import type { DistanceUnit } from '@/core/types';
 
 type MainStackParamList = {
   Settings: undefined;
@@ -21,8 +22,6 @@ type MainStackParamList = {
 type NavigationProp = StackNavigationProp<MainStackParamList>;
 
 type WeightUnit = 'imperial' | 'metric';
-type DistanceUnit = 'kilometers' | 'miles';
-
 interface WeightOption {
   label: string;
   value: WeightUnit;
@@ -46,7 +45,7 @@ const distanceOptions: DistanceOption[] = [
 export default function UnitsSettingsScreen() {
   const theme = useTheme();
   const navigation = useNavigation<NavigationProp>();
-  const { userProfile, updateUserProfile } = useUserStore();
+  const { userProfile, updateUserProfile, setDistanceUnits } = useUserStore();
 
   // Initialize state from store
   const currentUnits = userProfile?.units || 'imperial'; // TODO: Handle if store not implemented
@@ -54,8 +53,8 @@ export default function UnitsSettingsScreen() {
   // Derive distance unit from units or default to kilometers
   // TODO: Replace with userProfile.distanceUnits when added to store
   const currentDistanceUnit: DistanceUnit =
-    (userProfile as any)?.distanceUnits || // Try distanceUnits if it exists
-    (currentUnits === 'imperial' ? 'miles' : 'kilometers'); // Fallback to derived value
+    userProfile?.distanceUnits ||
+    (currentUnits === 'imperial' ? 'miles' : 'kilometers');
 
   const [weightUnit, setWeightUnit] = useState<WeightUnit>(currentUnits);
   const [distanceUnit, setDistanceUnit] =
@@ -66,9 +65,8 @@ export default function UnitsSettingsScreen() {
     if (userProfile?.units) {
       setWeightUnit(userProfile.units);
     }
-    // TODO: Sync distanceUnit when distanceUnits field is added to store
-    if ((userProfile as any)?.distanceUnits) {
-      setDistanceUnit((userProfile as any).distanceUnits);
+    if (userProfile?.distanceUnits) {
+      setDistanceUnit(userProfile.distanceUnits);
     } else if (userProfile?.units) {
       setDistanceUnit(
         userProfile.units === 'imperial' ? 'miles' : 'kilometers'
@@ -79,11 +77,8 @@ export default function UnitsSettingsScreen() {
   const handleSave = () => {
     // TODO: Ensure useUserStore.updateUserProfile supports distanceUnits
     try {
-      updateUserProfile({
-        units: weightUnit,
-        // TODO: Add distanceUnits field when store supports it
-        // distanceUnits: distanceUnit,
-      });
+      updateUserProfile({ units: weightUnit, distanceUnits: distanceUnit });
+      setDistanceUnits(distanceUnit);
       navigation.goBack();
     } catch (error) {
       // TODO: Handle error case when store is not implemented

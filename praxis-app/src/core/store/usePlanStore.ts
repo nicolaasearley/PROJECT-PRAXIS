@@ -1,79 +1,80 @@
+import dayjs from 'dayjs';
 import { create } from 'zustand';
-import type { WorkoutPlanDay } from '../types';
+import type { WorkoutPlanDay } from '@/core/types';
 
-interface PlanState {
-  // Workout plans
-  planDays: WorkoutPlanDay[];
+export interface PlanState {
+  plan: WorkoutPlanDay[];
   currentPlanDay: WorkoutPlanDay | null;
-  selectedDate: string | null; // yyyy-mm-dd
-
-  // Actions - Plan management
-  setPlanDays: (days: WorkoutPlanDay[]) => void;
-  addPlanDay: (day: WorkoutPlanDay) => void;
+  selectedDate: string | null;
+  setPlan: (plan: WorkoutPlanDay[]) => void;
+  setPlanDays: (plan: WorkoutPlanDay[]) => void;
+  addPlanDay: (planDay: WorkoutPlanDay) => void;
   updatePlanDay: (id: string, updates: Partial<WorkoutPlanDay>) => void;
   removePlanDay: (id: string) => void;
-  clearPlanDays: () => void;
-
-  // Actions - Current plan
-  setCurrentPlanDay: (day: WorkoutPlanDay | null) => void;
+  clearPlan: () => void;
+  getTodayPlan: () => WorkoutPlanDay | null;
+  setCurrentPlanDay: (planDay: WorkoutPlanDay | null) => void;
   setCurrentPlanDayByDate: (date: string) => void;
   setSelectedDate: (date: string | null) => void;
-
-  // Helpers
   getPlanDayByDate: (date: string) => WorkoutPlanDay | null;
   getPlanDayById: (id: string) => WorkoutPlanDay | null;
 }
 
+const sortPlan = (plan: WorkoutPlanDay[]): WorkoutPlanDay[] => {
+  return [...plan].sort((a, b) => a.date.localeCompare(b.date));
+};
+
 export const usePlanStore = create<PlanState>((set, get) => ({
-  // Initial state
-  planDays: [],
+  plan: [],
   currentPlanDay: null,
   selectedDate: null,
 
-  // Plan management actions
-  setPlanDays: (days) => set({ planDays: days }),
-  addPlanDay: (day) =>
+  setPlan: (plan) => set({ plan: sortPlan(plan) }),
+
+  setPlanDays: (plan) => set({ plan: sortPlan(plan) }),
+
+  addPlanDay: (planDay) =>
     set((state) => ({
-      planDays: [...state.planDays, day],
+      plan: sortPlan([...state.plan.filter((day) => day.id !== planDay.id), planDay]),
     })),
+
   updatePlanDay: (id, updates) =>
-    set((state) => ({
-      planDays: state.planDays.map((day) =>
+    set((state) => {
+      const updatedPlan = state.plan.map((day) =>
         day.id === id ? { ...day, ...updates } : day
-      ),
-      currentPlanDay:
+      );
+      const currentPlanDay =
         state.currentPlanDay?.id === id
           ? { ...state.currentPlanDay, ...updates }
-          : state.currentPlanDay,
-    })),
-  removePlanDay: (id) =>
-    set((state) => ({
-      planDays: state.planDays.filter((day) => day.id !== id),
-      currentPlanDay:
-        state.currentPlanDay?.id === id ? null : state.currentPlanDay,
-    })),
-  clearPlanDays: () =>
-    set({
-      planDays: [],
-      currentPlanDay: null,
-      selectedDate: null,
+          : state.currentPlanDay;
+      return { plan: sortPlan(updatedPlan), currentPlanDay };
     }),
 
-  // Current plan actions
-  setCurrentPlanDay: (day) => set({ currentPlanDay: day }),
-  setCurrentPlanDayByDate: (date) => {
-    const day = get().getPlanDayByDate(date);
-    set({ currentPlanDay: day, selectedDate: date });
+  removePlanDay: (id) =>
+    set((state) => ({
+      plan: state.plan.filter((day) => day.id !== id),
+      currentPlanDay: state.currentPlanDay?.id === id ? null : state.currentPlanDay,
+    })),
+
+  clearPlan: () => set({ plan: [], currentPlanDay: null, selectedDate: null }),
+
+  getTodayPlan: () => {
+    const today = dayjs().format('YYYY-MM-DD');
+    return get().plan.find((day) => day.date === today) || null;
   },
+
+  setCurrentPlanDay: (planDay) => set({ currentPlanDay: planDay }),
+
+  setCurrentPlanDayByDate: (date) => {
+    const planDay = get().getPlanDayByDate(date);
+    set({ currentPlanDay: planDay, selectedDate: date });
+  },
+
   setSelectedDate: (date) => set({ selectedDate: date }),
 
-  // Helper functions
-  getPlanDayByDate: (date) => {
-    const state = get();
-    return state.planDays.find((day) => day.date === date) || null;
-  },
-  getPlanDayById: (id) => {
-    const state = get();
-    return state.planDays.find((day) => day.id === id) || null;
-  },
+  getPlanDayByDate: (date) => get().plan.find((day) => day.date === date) || null,
+
+  getPlanDayById: (id) => get().plan.find((day) => day.id === id) || null,
 }));
+
+export default usePlanStore;

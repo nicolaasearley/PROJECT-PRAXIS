@@ -12,6 +12,8 @@ export type TimeAvailability = 'short' | 'standard' | 'full';
 
 export type AdaptationMode = 'conservative' | 'automatic' | 'aggressive';
 
+export type DistanceUnit = 'kilometers' | 'miles';
+
 export interface EquipmentItem {
   id: string; // e.g. "barbell", "dumbbell"
   name: string;
@@ -41,6 +43,7 @@ export interface UserProfile {
   dob?: string;
   country?: string;
   units: 'metric' | 'imperial';
+  distanceUnits?: DistanceUnit;
   preferences: TrainingPreferences;
   strengthNumbers?: StrengthNumbers;
   createdAt: string;

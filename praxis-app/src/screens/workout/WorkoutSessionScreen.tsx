@@ -774,7 +774,7 @@ export default function WorkoutSessionScreen() {
       >
         {navigationBlocks.map((block, index) => {
           const isActive = block.id === currentBlock?.id;
-          const blockIcon =
+          const blockIcon: keyof typeof Ionicons.glyphMap =
             block.type === 'strength'
               ? 'barbell'
               : block.type === 'accessory'
@@ -808,7 +808,7 @@ export default function WorkoutSessionScreen() {
                 ]}
               >
                 <Ionicons
-                  name={blockIcon as any}
+                  name={blockIcon}
                   size={20}
                   color={isActive ? theme.colors.black : theme.colors.white}
                 />

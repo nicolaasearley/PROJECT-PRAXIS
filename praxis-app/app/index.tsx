@@ -1,11 +1,43 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { useTheme } from '@/theme';
 
 export default function HomeScreen() {
+  const theme = useTheme();
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Project Praxis</Text>
-      <Text style={styles.subtitle}>Ready to train</Text>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.colors.carbon,
+        },
+      ]}
+    >
+      <Text
+        style={[
+          styles.title,
+          {
+            color: theme.colors.white,
+            fontFamily: theme.typography.fonts.heading,
+            fontSize: theme.typography.sizes.h2,
+          },
+        ]}
+      >
+        Project Praxis
+      </Text>
+      <Text
+        style={[
+          styles.subtitle,
+          {
+            color: theme.colors.muted,
+            fontFamily: theme.typography.fonts.body,
+            fontSize: theme.typography.sizes.body,
+          },
+        ]}
+      >
+        Ready to train
+      </Text>
       <StatusBar style="auto" />
     </View>
   );
@@ -14,7 +46,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -25,6 +56,5 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
   },
 });
