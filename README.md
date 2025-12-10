@@ -1,1 +1,1 @@
-# PROJECT-PRAXIS
+# ProjectAthlete
