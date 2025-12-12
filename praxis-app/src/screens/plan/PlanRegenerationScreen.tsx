@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -32,13 +32,27 @@ interface RegenerationOption {
 export default function PlanRegenerationScreen() {
   const theme = useTheme();
   const { readinessHistory, preferences, strengthNumbers } = useUserStore();
-  const { setPlanDays, setPlan, plan, getTodayPlan } = usePlanStore();
+  const { setPlanDays, setPlan, plan, getTodayPlan, _hasHydrated } = usePlanStore();
 
   const [confirmationModalVisible, setConfirmationModalVisible] =
     useState(false);
   const [loadingModalVisible, setLoadingModalVisible] = useState(false);
   const [selectedRegenerationType, setSelectedRegenerationType] =
     useState<RegenerationType | null>(null);
+
+  // Check if plan exists
+  const hasActivePlan = _hasHydrated && plan.length > 0;
+
+  // Log plan status
+  useEffect(() => {
+    if (_hasHydrated) {
+      if (!hasActivePlan) {
+        console.log('[PlanRegeneration] No plan — showing basic Generate Plan UI');
+      } else {
+        console.log('[PlanRegeneration] Plan detected — showing full regeneration menu');
+      }
+    }
+  }, [_hasHydrated, hasActivePlan]);
 
   // TODO: Replace with actual data from useUserStore.readinessHistory
   const mockReadinessData = {
@@ -110,6 +124,18 @@ export default function PlanRegenerationScreen() {
     
     const today = dayjs().format('YYYY-MM-DD');
     const weekStart = dayjs().startOf('week').format('YYYY-MM-DD');
+    
+    // Ensure weekly structure is loaded/created before generation
+    const { usePeriodizationStore } = require('@/store/periodizationStore');
+    const periodizationStore = usePeriodizationStore.getState();
+    periodizationStore.loadOrCreateWeek();
+    
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[PlanRegeneration] Weekly structure loaded:', {
+        weekStart: periodizationStore.currentWeekStructure?.weekStartISO,
+        days: periodizationStore.currentWeekStructure?.days.length,
+      });
+    }
     
     const microcycle = generateMicrocycle({
       startDate: weekStart,
@@ -203,20 +229,10 @@ export default function PlanRegenerationScreen() {
     setConfirmationModalVisible(true);
   };
 
-  // Helper function to navigate to today's workout after regeneration
-  const navigateToTodayWorkout = () => {
-    const todayWorkout = getTodayPlan();
-    
-    if (todayWorkout) {
-      console.log('[PlanRegenerationScreen] Navigating to today workout:', todayWorkout.id);
-      router.replace({
-        pathname: '/workout/overview',
-        params: { planDayId: todayWorkout.id },
-      });
-    } else {
-      console.log('[PlanRegenerationScreen] No workout found for today, navigating to /start');
-      router.replace('/start');
-    }
+  // Helper function to navigate to Plan tab after regeneration
+  const navigateToPlanTab = () => {
+    console.log('[PlanGeneration] Plan created — redirecting to Plan tab');
+    router.replace('/(tabs)/plan');
   };
 
   const handleConfirmRegeneration = async () => {
@@ -227,25 +243,25 @@ export default function PlanRegenerationScreen() {
       switch (selectedRegenerationType) {
         case 'today':
           await generateDailyWorkout();
-          navigateToTodayWorkout();
+          navigateToPlanTab();
           break;
         case 'week':
           await generateWeeklyPlan();
-          navigateToTodayWorkout();
+          navigateToPlanTab();
           break;
         case 'fullCycle':
           await generateFullCycle();
-          navigateToTodayWorkout();
+          navigateToPlanTab();
           break;
         case 'readinessTrend':
           await generateTrendAdjustedCycle();
-          navigateToTodayWorkout();
+          navigateToPlanTab();
           break;
       }
     } catch (error) {
       console.error('[PlanRegenerationScreen] Error regenerating plan:', error);
-      // Navigate to start on error as fallback
-      router.replace('/start');
+      // Navigate to Plan tab on error as fallback (plan may have been partially created)
+      router.replace('/(tabs)/plan');
     } finally {
       setLoadingModalVisible(false);
     }
@@ -254,6 +270,20 @@ export default function PlanRegenerationScreen() {
   const handleCancelRegeneration = () => {
     setConfirmationModalVisible(false);
     setSelectedRegenerationType(null);
+  };
+
+  // Handle Generate Plan (for when no plan exists)
+  const handleGeneratePlan = async () => {
+    setLoadingModalVisible(true);
+    try {
+      await generateFullCycle();
+      navigateToPlanTab();
+    } catch (error) {
+      console.error('[PlanRegenerationScreen] Error generating plan:', error);
+      router.replace('/(tabs)/plan');
+    } finally {
+      setLoadingModalVisible(false);
+    }
   };
 
   const selectedOption = regenerationOptions.find(
@@ -310,116 +340,163 @@ export default function PlanRegenerationScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Introduction Card */}
-        <Card
-          variant="elevated"
-          padding="lg"
-          style={{ marginBottom: theme.spacing.lg }}
-        >
-          <View style={styles.introContent}>
-            <Text
-              style={[
-                styles.introIcon,
-                {
-                  color: theme.colors.acidGreen,
-                  fontSize: 48,
-                  marginBottom: theme.spacing.lg,
-                },
-              ]}
-            >
-              [REGEN ICON]
-            </Text>
-            <Text
-              style={[
-                styles.introTitle,
-                {
-                  color: theme.colors.textPrimary,
-                  fontFamily: theme.typography.fonts.headingMedium,
-                  fontSize: theme.typography.sizes.h3,
-                  marginBottom: theme.spacing.md,
-                },
-              ]}
-            >
-              Adjust Your Training Plan
-            </Text>
-            <Text
-              style={[
-                styles.introBody,
-                {
-                  color: theme.colors.textPrimary,
-                  fontFamily: theme.typography.fonts.body,
-                  fontSize: theme.typography.sizes.body,
-                  marginBottom: theme.spacing.md,
-                  textAlign: 'center',
-                },
-              ]}
-            >
-              This tool lets you rebuild workouts or entire training cycles
-              based on your preferences and readiness trends.
-            </Text>
-            <Text
-              style={[
-                styles.introSubtitle,
-                {
-                  color: theme.colors.textMuted,
-                  fontFamily: theme.typography.fonts.body,
-                  fontSize: theme.typography.sizes.bodySmall,
-                  textAlign: 'center',
-                },
-              ]}
-            >
-              Use with intention. Regeneration makes permanent updates.
-            </Text>
-          </View>
-        </Card>
-
-        {/* Regeneration Options */}
-        {regenerationOptions.map((option) => (
-          <TouchableOpacity
-            key={option.id}
-            onPress={() => handleRegenerationPress(option.id)}
-            activeOpacity={0.7}
-          >
+        {/* No Plan State: Show only Generate Plan button */}
+        {!hasActivePlan ? (
+          <>
             <Card
               variant="elevated"
               padding="lg"
               style={{ marginBottom: theme.spacing.lg }}
             >
-              <Text
-                style={[
-                  styles.optionTitle,
-                  {
-                    color: theme.colors.textPrimary,
-                    fontFamily: theme.typography.fonts.headingMedium,
-                    fontSize: theme.typography.sizes.body,
-                    marginBottom: theme.spacing.xs,
-                  },
-                ]}
-              >
-                {option.title}
-              </Text>
-              <Text
-                style={[
-                  styles.optionSubtitle,
-                  {
-                    color: theme.colors.textMuted,
-                    fontFamily: theme.typography.fonts.body,
-                    fontSize: theme.typography.sizes.bodySmall,
-                  },
-                ]}
-              >
-                {option.subtitle}
-              </Text>
+              <View style={styles.introContent}>
+                <Text
+                  style={[
+                    styles.introTitle,
+                    {
+                      color: theme.colors.textPrimary,
+                      fontFamily: theme.typography.fonts.headingMedium,
+                      fontSize: theme.typography.sizes.h3,
+                      marginBottom: theme.spacing.md,
+                      textAlign: 'center',
+                    },
+                  ]}
+                >
+                  Generate Your Training Plan
+                </Text>
+                <Text
+                  style={[
+                    styles.introBody,
+                    {
+                      color: theme.colors.textMuted,
+                      fontFamily: theme.typography.fonts.body,
+                      fontSize: theme.typography.sizes.body,
+                      marginBottom: theme.spacing.xl,
+                      textAlign: 'center',
+                    },
+                  ]}
+                >
+                  Create your first training cycle based on your preferences and goals.
+                </Text>
+                <PraxisButton
+                  title="Generate Plan"
+                  onPress={handleGeneratePlan}
+                  size="large"
+                />
+              </View>
             </Card>
-          </TouchableOpacity>
-        ))}
+          </>
+        ) : (
+          <>
+            {/* Introduction Card */}
+            <Card
+              variant="elevated"
+              padding="lg"
+              style={{ marginBottom: theme.spacing.lg }}
+            >
+              <View style={styles.introContent}>
+                <Text
+                  style={[
+                    styles.introIcon,
+                    {
+                      color: theme.colors.acidGreen,
+                      fontSize: 48,
+                      marginBottom: theme.spacing.lg,
+                    },
+                  ]}
+                >
+                  [REGEN ICON]
+                </Text>
+                <Text
+                  style={[
+                    styles.introTitle,
+                    {
+                      color: theme.colors.textPrimary,
+                      fontFamily: theme.typography.fonts.headingMedium,
+                      fontSize: theme.typography.sizes.h3,
+                      marginBottom: theme.spacing.md,
+                    },
+                  ]}
+                >
+                  Adjust Your Training Plan
+                </Text>
+                <Text
+                  style={[
+                    styles.introBody,
+                    {
+                      color: theme.colors.textPrimary,
+                      fontFamily: theme.typography.fonts.body,
+                      fontSize: theme.typography.sizes.body,
+                      marginBottom: theme.spacing.md,
+                      textAlign: 'center',
+                    },
+                  ]}
+                >
+                  This tool lets you rebuild workouts or entire training cycles
+                  based on your preferences and readiness trends.
+                </Text>
+                <Text
+                  style={[
+                    styles.introSubtitle,
+                    {
+                      color: theme.colors.textMuted,
+                      fontFamily: theme.typography.fonts.body,
+                      fontSize: theme.typography.sizes.bodySmall,
+                      textAlign: 'center',
+                    },
+                  ]}
+                >
+                  Use with intention. Regeneration makes permanent updates.
+                </Text>
+              </View>
+            </Card>
 
-        {/* Readiness Snapshot */}
-        <Card
-          variant="elevated"
-          padding="lg"
-          style={{ marginBottom: theme.spacing.lg }}
-        >
+            {/* Regeneration Options */}
+            {regenerationOptions.map((option) => (
+              <TouchableOpacity
+                key={option.id}
+                onPress={() => handleRegenerationPress(option.id)}
+                activeOpacity={0.7}
+              >
+                <Card
+                  variant="elevated"
+                  padding="lg"
+                  style={{ marginBottom: theme.spacing.lg }}
+                >
+                  <Text
+                    style={[
+                      styles.optionTitle,
+                      {
+                        color: theme.colors.textPrimary,
+                        fontFamily: theme.typography.fonts.headingMedium,
+                        fontSize: theme.typography.sizes.body,
+                        marginBottom: theme.spacing.xs,
+                      },
+                    ]}
+                  >
+                    {option.title}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.optionSubtitle,
+                      {
+                        color: theme.colors.textMuted,
+                        fontFamily: theme.typography.fonts.body,
+                        fontSize: theme.typography.sizes.bodySmall,
+                      },
+                    ]}
+                  >
+                    {option.subtitle}
+                  </Text>
+                </Card>
+              </TouchableOpacity>
+            ))}
+
+            {/* Readiness Snapshot */}
+            <Card
+              variant="elevated"
+              padding="lg"
+              style={{ marginBottom: theme.spacing.lg }}
+            >
           <Text
             style={[
               styles.sectionTitle,
@@ -578,6 +655,8 @@ export default function PlanRegenerationScreen() {
             </Text>
           </View>
         </Card>
+          </>
+        )}
 
         <Spacer size="xl" />
       </ScrollView>

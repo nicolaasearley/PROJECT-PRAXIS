@@ -5,6 +5,9 @@ import { generateAccessoryBlock } from '../blocks/generateAccessoryBlock';
 import { generateConditioningBlock } from '../blocks/generateConditioningBlock';
 import { generateCooldownBlock } from '../blocks/generateCooldownBlock';
 import type { MovementPattern } from '@core/types/exercise';
+import type { WeeklyDayStructure } from '@/utils/periodization/buildWeeklyStructure';
+
+const PERIODIZATION_DEBUG = true;
 
 interface ConstructWorkoutBlocksOptions {
   focusPatternOverride?: string;
@@ -14,6 +17,7 @@ interface ConstructWorkoutBlocksOptions {
   dayIndex: number;
   equipmentIds: string[];
   strengthNumbers?: Record<string, number>;
+  weeklyStructureDay?: WeeklyDayStructure; // NEW: weekly structure guidance
 }
 
 /**
@@ -34,6 +38,7 @@ export function constructWorkoutBlocks(
     dayIndex,
     equipmentIds,
     strengthNumbers,
+    weeklyStructureDay,
   } = options;
 
   const blocks: WorkoutBlock[] = [];
@@ -63,6 +68,7 @@ export function constructWorkoutBlocks(
     experienceLevel: experienceLevel as 'beginner' | 'intermediate' | 'advanced',
     strengthNumbers,
     focusPatternOverride,
+    weeklyStructureDay, // Pass weekly structure for volume/intensity adjustments
   });
   if (strength) {
     blocks.push(strength);
@@ -71,8 +77,9 @@ export function constructWorkoutBlocks(
 
   /**
    * 3. Accessory (only if we have a strength block)
+   * PATCH PART 3D: Skip accessory blocks for fatigue-protected patterns
    */
-  const accessory = strength
+  const accessory = strength && !weeklyStructureDay?.fatigueProtected
     ? generateAccessoryBlock({
         mainLiftId: strength.strengthMain?.exerciseId ?? null,
         mainPattern: selectedPattern,
@@ -85,13 +92,25 @@ export function constructWorkoutBlocks(
   if (accessory) {
     blocks.push(accessory);
     totalDuration += accessory.estimatedDurationMinutes ?? 15;
+  } else if (weeklyStructureDay?.fatigueProtected && PERIODIZATION_DEBUG) {
+    console.log('[DailyGen Override] Skipping accessory block for fatigue-protected day');
   }
 
   /**
-   * 4. Conditioning (conditional based on goal and schedule)
+   * 4. Conditioning (conditional based on goal, schedule, and weekly structure)
    */
-  // Determine if conditioning should be included based on goal and dayIndex
+  // Determine if conditioning should be included
+  // Priority: weeklyStructureDay.conditioningTarget > goal-based logic
   const shouldIncludeConditioning = (() => {
+    // If weekly structure specifies conditioning target, use it
+    if (weeklyStructureDay) {
+      const target = weeklyStructureDay.conditioningTarget;
+      // "light", "mixed", "intensity" all mean include conditioning
+      // Only skip if explicitly not present in structure
+      return target !== undefined;
+    }
+    
+    // Fallback to goal-based logic
     // dayIndex is 0–6 within the microcycle week
     switch (goal) {
       case 'conditioning':
@@ -115,6 +134,7 @@ export function constructWorkoutBlocks(
       experienceLevel,
       dayIndex,
       equipmentIds,
+      weeklyStructureDay, // Pass weekly structure for conditioning target adjustments
     });
     if (conditioning) {
       blocks.push(conditioning);

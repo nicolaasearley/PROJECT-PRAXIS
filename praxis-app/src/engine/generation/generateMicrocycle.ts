@@ -6,6 +6,7 @@ import type {
   TrainingPreferences,
 } from '@core/types';
 import { generateDailyWorkout } from './generateDailyWorkout';
+import { usePeriodizationStore } from '@/store/periodizationStore';
 import dayjs from 'dayjs';
 
 export interface MicrocycleParams {
@@ -274,11 +275,23 @@ function mapTemplateFocusToGoal(
 
 /**
  * GENERATE 6-WEEK CYCLE USING WEEKLY TEMPLATES
+ * Now integrates with Weekly Structure Engine for periodization
  */
 export function generateMicrocycle(params: MicrocycleParams): WorkoutPlanDay[] {
   const template = WEEKLY_TEMPLATES[params.goal ?? 'hybrid'];
   const weeks = 6;
   const cycle: WorkoutPlanDay[] = [];
+
+  // Load or create weekly structure for periodization guidance
+  const periodizationStore = usePeriodizationStore.getState();
+  periodizationStore.loadOrCreateWeek();
+  const weeklyStructure = periodizationStore.currentWeekStructure;
+
+  // Helper to find matching weekly structure day for a given date
+  const findWeeklyStructureDay = (dateISO: string) => {
+    if (!weeklyStructure) return undefined;
+    return weeklyStructure.days.find((day) => day.dateISO === dateISO);
+  };
 
   for (let week = 0; week < weeks; week++) {
     for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
@@ -296,7 +309,10 @@ export function generateMicrocycle(params: MicrocycleParams): WorkoutPlanDay[] {
         // Map template focus to workout goal
         const workoutGoal = mapTemplateFocusToGoal(focus, params.goal);
 
-        // Generate base workout with template focus override
+        // Find matching weekly structure day (if available)
+        const weeklyStructureDay = findWeeklyStructureDay(date);
+
+        // Generate base workout with template focus override and weekly structure
         const baseWorkout = generateDailyWorkout({
           goal: workoutGoal,
           experienceLevel: params.experienceLevel,
@@ -308,6 +324,7 @@ export function generateMicrocycle(params: MicrocycleParams): WorkoutPlanDay[] {
           date,
           focusPatternOverride: focus, // ← main pattern comes from weekly template
           weekIndex: week,
+          weeklyStructureDay, // ← weekly structure guidance for volume/intensity/conditioning
         });
 
         // TECHNIQUE WEEK (week 3, zero-based → 4th calendar week)

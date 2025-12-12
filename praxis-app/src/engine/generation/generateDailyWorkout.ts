@@ -18,6 +18,7 @@ import { useUserStore } from '@core/store/useUserStore';
 import { generateStrengthPrescription } from '../strength/generateStrengthPrescription';
 import { generateConditioningPrescription } from '../conditioning/generateConditioningPrescription';
 import { constructWorkoutBlocks } from './constructWorkoutBlocks';
+import type { WeeklyDayStructure } from '@/utils/periodization/buildWeeklyStructure';
 import dayjs from 'dayjs';
 
 interface GenerateDailyWorkoutParams {
@@ -30,6 +31,7 @@ interface GenerateDailyWorkoutParams {
   date?: string; // yyyy-mm-dd format
   focusPatternOverride?: string; // NEW: supplied by weekly template
   weekIndex?: number; // available for future periodization
+  weeklyStructureDay?: WeeklyDayStructure; // NEW: weekly structure guidance
 }
 
 /**
@@ -766,10 +768,23 @@ export function generateDailyWorkout(
     date,
     focusPatternOverride,
     weekIndex,
+    weeklyStructureDay,
   } = params;
 
   // Resolve pattern from override if provided
-  const resolvedPattern = resolvePatternFromOverride(focusPatternOverride, dayIndex);
+  // Priority: weeklyStructureDay.mainMovementPattern > focusPatternOverride > default rotation
+  let resolvedPattern = resolvePatternFromOverride(focusPatternOverride, dayIndex);
+  
+  // Override with weekly structure pattern if available
+  if (weeklyStructureDay && weeklyStructureDay.mainMovementPattern) {
+    // Map weekly structure pattern to our pattern system
+    const structurePattern = weeklyStructureDay.mainMovementPattern;
+    if (structurePattern !== 'engine' && structurePattern !== 'conditioning') {
+      resolvedPattern = structurePattern as MovementPattern | 'rest' | 'conditioning' | null;
+    } else if (structurePattern === 'engine' || structurePattern === 'conditioning') {
+      resolvedPattern = 'conditioning';
+    }
+  }
 
   /**
    * EARLY EXIT: REST DAY
@@ -827,6 +842,7 @@ export function generateDailyWorkout(
   }
 
   // New: unified block constructor
+  // Pass weekly structure to constructWorkoutBlocks for volume/intensity/conditioning adjustments
   const { blocks, estimatedDurationMinutes } = constructWorkoutBlocks({
     focusPatternOverride,
     selectedPattern: primaryPattern,
@@ -835,6 +851,7 @@ export function generateDailyWorkout(
     dayIndex,
     equipmentIds,
     strengthNumbers,
+    weeklyStructureDay, // Pass weekly structure for adjustments
   });
 
   // Determine focus tags (check if strength block exists)

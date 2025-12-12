@@ -58,6 +58,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     experiments: {
       typedRoutes: true,
     },
+    jsEngine: 'hermes',
     extra: {
       eas: {
         projectId: getProjectId(),

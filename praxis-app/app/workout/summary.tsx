@@ -1,2 +1,2 @@
-export { default } from '@screens/workout/WorkoutSummaryScreen';
+export { default } from '@/screens/workout/WorkoutCompleteScreen';
 

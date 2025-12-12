@@ -3,6 +3,9 @@ import type { Exercise, ExerciseDifficulty } from '@core/types/exercise';
 import { EXERCISES, getExercisesByPatternAndEquipment } from '@core/data/exercises';
 import { getIntensityWave, getRepScheme, buildStrengthSets } from '../strength/strengthProgression';
 import { useUserStore } from '@core/store/useUserStore';
+import type { WeeklyDayStructure } from '@/utils/periodization/buildWeeklyStructure';
+
+const PERIODIZATION_DEBUG = true;
 
 interface GenerateStrengthBlockOptions {
   pattern: MovementPattern;
@@ -12,6 +15,7 @@ interface GenerateStrengthBlockOptions {
   strengthNumbers?: Record<string, number>;
   focusPatternOverride?: string; // NEW — weekly template override
   weekIndex?: number; // NEW — future periodization
+  weeklyStructureDay?: WeeklyDayStructure; // NEW — weekly structure guidance
 }
 
 /**
@@ -66,7 +70,7 @@ function generateId(prefix: string): string {
 }
 
 export function generateStrengthBlock(options: GenerateStrengthBlockOptions): WorkoutBlock | null {
-  const { pattern, dayIndex, equipmentIds, experienceLevel, strengthNumbers, focusPatternOverride } = options;
+  const { pattern, dayIndex, equipmentIds, experienceLevel, strengthNumbers, focusPatternOverride, weeklyStructureDay } = options;
 
   /**
    * Map override → actual pattern
@@ -232,25 +236,152 @@ export function generateStrengthBlock(options: GenerateStrengthBlockOptions): Wo
 
   /**
    * Build the strength prescription using wave-based progression
+   * Adjust based on weekly structure volume/intensity targets if available
    */
-  const intensity = getIntensityWave(dayIndex);
-  const repScheme = getRepScheme(experienceLevel, intensity.wave);
+  const baseIntensity = getIntensityWave(dayIndex);
+  const baseRepScheme = getRepScheme(experienceLevel, baseIntensity.wave);
+
+  // Apply weekly structure adjustments
+  let adjustedSets = baseRepScheme.sets;
+  let adjustedRpe = baseIntensity.rpe;
+  let adjustedPercent = baseIntensity.percent;
+
+  // PATCH PART 3: Enforce overrides in daily generators
+  if (weeklyStructureDay) {
+    // A. Volume/Intensity enforcement (Strength Block)
+    if (weeklyStructureDay.volumeTarget === 'low') {
+      // PATCH PART 3A: Stronger enforcement for low volume
+      // Reduce sets by 1-2, but never below 2
+      adjustedSets = Math.max(2, baseRepScheme.sets - Math.min(2, baseRepScheme.sets - 2));
+    } else if (weeklyStructureDay.volumeTarget === 'high') {
+      // Increase sets by +1 (max 6)
+      adjustedSets = Math.min(6, baseRepScheme.sets + 1);
+    }
+    // "medium" = no change
+
+    if (weeklyStructureDay.intensityTarget === 'low') {
+      // PATCH PART 3A: Stronger enforcement for low intensity
+      // Reduce RPE by 1 (min 5), reduce %1RM by 5%
+      adjustedRpe = Math.max(5, baseIntensity.rpe - 1);
+      adjustedPercent = Math.max(0.5, baseIntensity.percent - 0.05);
+      
+      // If volume is also low, apply additional intensity reduction
+      if (weeklyStructureDay.volumeTarget === 'low') {
+        adjustedRpe = Math.max(5, adjustedRpe - 1); // Another RPE reduction
+        adjustedPercent = Math.max(0.5, adjustedPercent - 0.05); // Another % reduction
+      }
+    } else if (weeklyStructureDay.intensityTarget === 'high') {
+      // Increase RPE by 1 (max 10), increase %1RM by 5%
+      adjustedRpe = Math.min(10, baseIntensity.rpe + 1);
+      adjustedPercent = Math.min(1.0, baseIntensity.percent + 0.05);
+    }
+    // "medium" = no change
+
+    // B. Hard deload (check blockType for deload)
+    if (weeklyStructureDay.blockType === 'deload') {
+      // PATCH PART 3B: Hard deload enforcement
+      adjustedSets = 2; // Force 2 sets
+      adjustedRpe = Math.min(6, Math.max(5, adjustedRpe)); // Force RPE 5-6
+      adjustedPercent = Math.max(0.5, Math.min(0.7, adjustedPercent - 0.10)); // Reduce %1RM by 10-15%
+      
+      if (PERIODIZATION_DEBUG) {
+        console.log('[DailyGen Override] Hard deload applied:', {
+          sets: adjustedSets,
+          rpe: adjustedRpe,
+          percent: adjustedPercent,
+        });
+      }
+    }
+
+    // D. Fatigue-protected days
+    if (weeklyStructureDay.fatigueProtected) {
+      // PATCH PART 3D: Force low volume and intensity for fatigue-protected days
+      adjustedSets = Math.max(2, Math.min(3, adjustedSets)); // Max 3 sets, min 2
+      adjustedRpe = Math.max(5, Math.min(6, adjustedRpe)); // Force RPE 5-6
+      adjustedPercent = Math.max(0.5, Math.min(0.65, adjustedPercent - 0.10)); // Reduce %1RM significantly
+      
+      if (PERIODIZATION_DEBUG) {
+        console.log('[DailyGen Override] Fatigue-protected day:', {
+          volume: weeklyStructureDay.volumeTarget,
+          intensity: weeklyStructureDay.intensityTarget,
+          sets: adjustedSets,
+          rpe: adjustedRpe,
+          percent: adjustedPercent,
+        });
+      }
+    }
+
+    // Block type reinforcement (small additional nudge to ensure block type is felt)
+    // This reinforces the weekly structure targets while respecting all bounds
+    if (weeklyStructureDay.blockType === 'deload' && !weeklyStructureDay.fatigueProtected) {
+      // Deload: extra conservative adjustment (only if not already fatigue-protected)
+      if (adjustedSets > 2) {
+        adjustedSets = Math.max(2, adjustedSets - 1); // Extra set reduction
+      }
+      if (adjustedRpe > 6) {
+        adjustedRpe = Math.max(5, adjustedRpe - 1); // Extra RPE reduction
+      }
+      if (adjustedPercent > 0.7) {
+        adjustedPercent = Math.max(0.5, adjustedPercent - 0.05); // Extra % reduction
+      }
+    } else if (weeklyStructureDay.blockType === 'intensification') {
+      // Intensification: if intensity target is high, reinforce it slightly
+      if (weeklyStructureDay.intensityTarget === 'high' && adjustedRpe < 9) {
+        adjustedRpe = Math.min(10, adjustedRpe + 1); // Extra RPE boost
+        adjustedPercent = Math.min(1.0, adjustedPercent + 0.03); // Extra % boost
+      }
+    } else if (weeklyStructureDay.blockType === 'accumulation') {
+      // Accumulation: if volume target is high, reinforce it slightly
+      if (weeklyStructureDay.volumeTarget === 'high' && adjustedSets < 5) {
+        adjustedSets = Math.min(6, adjustedSets + 1); // Extra set boost
+      }
+    }
+
+    if (PERIODIZATION_DEBUG) {
+      console.log('[DailyGen Override]', {
+        volume: weeklyStructureDay.volumeTarget,
+        intensity: weeklyStructureDay.intensityTarget,
+        fatigueProtected: weeklyStructureDay.fatigueProtected,
+        blockType: weeklyStructureDay.blockType,
+        finalSets: adjustedSets,
+        finalRpe: adjustedRpe,
+        finalPercent: adjustedPercent,
+      });
+    }
+  }
+
+  // Create adjusted rep scheme
+  const adjustedRepScheme = {
+    ...baseRepScheme,
+    sets: adjustedSets,
+  };
+
+  // Create adjusted intensity
+  const adjustedIntensity = {
+    ...baseIntensity,
+    rpe: adjustedRpe,
+    percent: adjustedPercent,
+  };
 
   // Pull 1RM from user store
   const userStore = useUserStore.getState();
   const oneRm = getOneRmForExercise(mainLift.id, userStore.strengthNumbers);
 
-  const sets = buildStrengthSets(repScheme, intensity, oneRm);
+  const sets = buildStrengthSets(adjustedRepScheme, adjustedIntensity, oneRm);
 
   if (process.env.NODE_ENV !== 'production') {
     console.log('[StrengthEngine] Selected main lift:', mainLift.name, {
       pattern: resolvedPattern,
       difficulty: mainLift.difficulty,
-      wave: intensity.wave,
-      sets: repScheme.sets,
-      reps: repScheme.reps,
-      rpe: intensity.rpe,
+      wave: adjustedIntensity.wave,
+      sets: adjustedRepScheme.sets,
+      reps: adjustedRepScheme.reps,
+      rpe: adjustedIntensity.rpe,
       oneRm,
+      weeklyStructure: weeklyStructureDay ? {
+        volumeTarget: weeklyStructureDay.volumeTarget,
+        intensityTarget: weeklyStructureDay.intensityTarget,
+      } : undefined,
     });
   }
 
@@ -261,12 +392,12 @@ export function generateStrengthBlock(options: GenerateStrengthBlockOptions): Wo
     strengthMain: {
       exerciseId: mainLift.id,
       sets,
-      wave: intensity.wave,
-      rpe: intensity.rpe,
-      percent: intensity.percent,
+      wave: adjustedIntensity.wave,
+      rpe: adjustedIntensity.rpe,
+      percent: adjustedIntensity.percent,
       oneRmUsed: oneRm ?? null,
     },
-    estimatedDurationMinutes: 25 + repScheme.sets * 2, // ~2 min per set including rest
+    estimatedDurationMinutes: 25 + adjustedRepScheme.sets * 2, // ~2 min per set including rest
   };
 }
 

@@ -5,6 +5,9 @@ import { getConditioningPrescription } from '../conditioning/conditioningTemplat
 import { getHyroxConditioningTemplate } from '../conditioning/conditioningHyrox';
 import { getHyroxRaceSimulation } from '../conditioning/conditioningHyroxRace';
 import { getReadinessFactor } from '../conditioning/conditioningReadiness';
+import type { WeeklyDayStructure } from '@/utils/periodization/buildWeeklyStructure';
+
+const PERIODIZATION_DEBUG = true;
 
 /**
  * Generate a unique ID for workout blocks
@@ -18,6 +21,7 @@ interface GenerateConditioningBlockOptions {
   experienceLevel: string;
   dayIndex: number;
   equipmentIds: string[];
+  weeklyStructureDay?: WeeklyDayStructure; // NEW: weekly structure guidance
 }
 
 
@@ -27,7 +31,7 @@ interface GenerateConditioningBlockOptions {
 export function generateConditioningBlock(
   options: GenerateConditioningBlockOptions
 ): WorkoutBlock | null {
-  const { goal, equipmentIds, dayIndex } = options;
+  const { goal, equipmentIds, dayIndex, weeklyStructureDay } = options;
 
   // Skip conditioning for pure strength days
   if (goal === 'strength') {
@@ -40,11 +44,86 @@ export function generateConditioningBlock(
     userStore.preferences?.timeAvailability || 'standard';
 
   // Determine intensity, zone, style, duration
-  const prescription = getConditioningPrescription(
+  let prescription = getConditioningPrescription(
     dayIndex,
     goal,
     timeAvailability
   );
+
+  // PATCH PART 3C: Conditioning enforcement
+  if (weeklyStructureDay?.conditioningTarget) {
+    const target = weeklyStructureDay.conditioningTarget;
+    
+    if (target === 'light') {
+      // PATCH PART 3C: Light conditioning enforcement
+      // zone = 2, duration ≤ 15 min, style = 'steady'
+      prescription = {
+        ...prescription,
+        zone: 2,
+        style: 'steady',
+        duration: Math.min(15, Math.max(prescription.duration, 10)), // Cap at 15 min, min 10
+      };
+      
+      if (PERIODIZATION_DEBUG) {
+        console.log('[DailyGen Override] Light conditioning enforced:', {
+          zone: prescription.zone,
+          style: prescription.style,
+          duration: prescription.duration,
+        });
+      }
+    } else if (target === 'intensity') {
+      // Intensity = Z4, intervals, shorter but harder
+      prescription = {
+        ...prescription,
+        zone: 4,
+        style: 'interval',
+        duration: Math.min(prescription.duration, 20), // Cap at 20 min for intensity
+      };
+    } else if (target === 'mixed') {
+      // Mixed = Z3, moderate intervals (default behavior, but ensure Z3)
+      prescription = {
+        ...prescription,
+        zone: 3,
+        style: prescription.style || 'interval',
+      };
+    }
+  }
+
+  // PATCH PART 3B: Hard deload - conditioning always light (Z2 only, ≤12 minutes)
+  if (weeklyStructureDay?.blockType === 'deload') {
+    prescription = {
+      ...prescription,
+      zone: 2,
+      style: 'steady',
+      duration: Math.min(12, prescription.duration), // Cap at 12 min for hard deload
+    };
+    
+    if (PERIODIZATION_DEBUG) {
+      console.log('[DailyGen Override] Deload conditioning enforced:', {
+        zone: prescription.zone,
+        style: prescription.style,
+        duration: prescription.duration,
+      });
+    }
+  }
+
+  // PATCH PART 3D: Fatigue-protected days - force light conditioning
+  if (weeklyStructureDay?.fatigueProtected) {
+    prescription = {
+      ...prescription,
+      zone: 2,
+      style: 'steady',
+      duration: Math.min(15, prescription.duration), // Cap at 15 min
+    };
+    
+    if (PERIODIZATION_DEBUG) {
+      console.log('[DailyGen Override] Fatigue-protected conditioning:', {
+        zone: prescription.zone,
+        style: prescription.style,
+        duration: prescription.duration,
+      });
+    }
+  }
 
   // Pull readiness from store
   const readiness = userStore.currentReadiness;
@@ -153,6 +232,9 @@ export function generateConditioningBlock(
       goal,
       timeAvailability,
       prescription,
+      weeklyStructure: weeklyStructureDay ? {
+        conditioningTarget: weeklyStructureDay.conditioningTarget,
+      } : undefined,
     });
   }
 

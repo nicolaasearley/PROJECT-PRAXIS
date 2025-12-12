@@ -14,6 +14,10 @@ import { CooldownBlockRenderer } from '@components/blocks/renderers/CooldownBloc
 import { HyroxRaceBlock } from '@components/workout/HyroxRaceBlock';
 import { usePlanStore } from '@core/store';
 import { useSessionStore } from '@core/store';
+import { useWorkoutSessionStore } from '@/store/workoutSessionStore';
+import { useRecoveryStore } from '@/store/recoveryStore';
+import { applyRecoveryAdjustment } from '@/utils/recoveryAdjustment';
+import { Card } from '@components';
 import dayjs from 'dayjs';
 
 /**
@@ -32,6 +36,8 @@ export default function WorkoutOverviewScreen() {
     : params.planDayId;
   const { plan } = usePlanStore();
   const { startSession } = useSessionStore();
+  const { session, startSession: startWorkoutSession } = useWorkoutSessionStore();
+  const { getRecovery } = useRecoveryStore();
   const reorderAccessoryExercises = usePlanStore((s) => s.reorderAccessoryExercises);
   const updateStrengthSet = usePlanStore((s) => s.updateStrengthSet);
   const addStrengthSet = usePlanStore((s) => s.addStrengthSet);
@@ -39,6 +45,19 @@ export default function WorkoutOverviewScreen() {
 
   // Find the plan day by ID
   const planDay = plan.find((day) => day.id === planDayId) ?? plan[0];
+
+  // Check if there's an active session for today's workout
+  const hasActiveSession = session.planDayId === planDayId && session.startTime !== null;
+  const canResume = hasActiveSession && session.currentBlockIndex < session.blocks.length;
+
+  // Calculate adjustment metadata if not already in session
+  const adjustmentMetadata = session.adjustmentMetadata || (() => {
+    if (!planDay) return null;
+    const recoveryScore = getRecovery();
+    if (recoveryScore === null) return null;
+    const adjustment = applyRecoveryAdjustment(recoveryScore, planDay.blocks);
+    return adjustment.metadata;
+  })();
 
   const orderedBlocks = [...(planDay?.blocks ?? [])].sort((a: any, b: any) => {
     const order: Record<string, number> = {
@@ -68,15 +87,23 @@ export default function WorkoutOverviewScreen() {
     }
   };
 
-  // Handle "Begin Workout" button press
-  const handleBeginWorkout = () => {
+  // Handle "Start Workout" button press
+  const handleStartWorkout = () => {
     if (!planDay || !planDayId) return;
 
-    // Start the session
-    startSession(planDayId);
+    // Start the workout session
+    startWorkoutSession(planDayId, planDay.blocks);
 
-    // Navigate to ActiveWorkout screen
-    router.push({ pathname: '/workout/active', params: { planDayId } });
+    // Navigate to session screen with first block
+    router.push('/workout/session?blockIndex=0');
+  };
+
+  // Handle "Resume Workout" button press
+  const handleResumeWorkout = () => {
+    if (!planDay || !planDayId) return;
+
+    // Navigate to current block in session
+    router.push(`/workout/session?blockIndex=${session.currentBlockIndex}`);
   };
 
   // Handle back navigation
@@ -347,11 +374,67 @@ export default function WorkoutOverviewScreen() {
             },
           ]}
         >
+          {/* Adjustment Banner */}
+          {adjustmentMetadata && (
+            <>
+              <Card
+                variant="elevated"
+                padding="md"
+                style={{
+                  marginBottom: theme.spacing.md,
+                  backgroundColor:
+                    adjustmentMetadata.level === 'under'
+                      ? `${theme.colors.warning}20`
+                      : adjustmentMetadata.level === 'high'
+                      ? `${theme.colors.primary}20`
+                      : `${theme.colors.primary}15`,
+                  borderLeftWidth: 3,
+                  borderLeftColor:
+                    adjustmentMetadata.level === 'under'
+                      ? theme.colors.warning
+                      : adjustmentMetadata.level === 'high'
+                      ? theme.colors.primary
+                      : theme.colors.textMuted,
+                }}
+              >
+                <Text
+                  style={[
+                    styles.adjustmentText,
+                    {
+                      color:
+                        adjustmentMetadata.level === 'under'
+                          ? theme.colors.warning
+                          : adjustmentMetadata.level === 'high'
+                          ? theme.colors.primary
+                          : theme.colors.textPrimary,
+                      fontFamily: theme.typography.fonts.bodyMedium,
+                      fontSize: theme.typography.sizes.bodySmall,
+                    },
+                  ]}
+                >
+                  {adjustmentMetadata.level === 'under'
+                    ? "Today's workout has been reduced due to low recovery."
+                    : adjustmentMetadata.level === 'high'
+                    ? 'Performance mode enabled — your workout has been boosted.'
+                    : 'A recommended adjustment has been applied.'}
+                </Text>
+              </Card>
+            </>
+          )}
+
+          {hasActiveSession && canResume ? (
+            <PraxisButton
+              title="Resume Workout"
+              onPress={handleResumeWorkout}
+              size="large"
+            />
+          ) : (
           <PraxisButton
-            title="Start Session"
-            onPress={handleBeginWorkout}
+              title="Start Workout"
+              onPress={handleStartWorkout}
             size="large"
           />
+          )}
         </View>
       )}
     </SafeAreaView>

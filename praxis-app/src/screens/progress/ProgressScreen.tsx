@@ -1,141 +1,91 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import type { StackNavigationProp } from '@react-navigation/stack';
+import { router } from 'expo-router';
 import { useTheme } from '@theme';
-import { Card, PraxisButton, Spacer } from '@components';
-import { useUserStore } from '@core/store';
-
-type MainStackParamList = {
-  StrengthDetail: undefined;
-  ConditioningDetail: undefined;
-  ReadinessDetail: undefined;
-};
-
-type NavigationProp = StackNavigationProp<MainStackParamList>;
-
-interface StrengthLift {
-  name: string;
-  current1RM: number;
-  previous1RM: number;
-  change: number;
-  timePeriod: string;
-}
+import { Card, Spacer } from '@components';
+import { useWorkoutHistoryStore } from '@/store/workoutHistoryStore';
+import ProgressSummaryCard from '@/components/progress/ProgressSummaryCard';
+import WorkoutHistoryList from '@/components/progress/WorkoutHistoryList';
+import VolumeTrendChart from '@/components/progress/charts/VolumeTrendChart';
+import IntensityTrendChart from '@/components/progress/charts/IntensityTrendChart';
+import PatternVolumeTrendChart from '@/components/progress/charts/PatternVolumeTrendChart';
+import BlockVolumeTrendChart from '@/components/progress/charts/BlockVolumeTrendChart';
+import { getPatternVolumeTrend, getBlockVolumeTrend } from '@/utils/progressAnalytics';
 
 export default function ProgressScreen() {
   const theme = useTheme();
-  const navigation = useNavigation<NavigationProp>();
-  const { personalRecords } = useUserStore();
+  const { getWorkouts, _hasHydrated } = useWorkoutHistoryStore();
 
-  // TODO: Replace with actual data from useSessionStore and PR detection
-  const mockStrengthLifts: StrengthLift[] = [
-    {
-      name: 'Back Squat',
-      current1RM: 295,
-      previous1RM: 275,
-      change: 20,
-      timePeriod: '6 weeks',
-    },
-    {
-      name: 'Bench Press',
-      current1RM: 195,
-      previous1RM: 185,
-      change: 10,
-      timePeriod: '6 weeks',
-    },
-    {
-      name: 'Deadlift',
-      current1RM: 355,
-      previous1RM: 335,
-      change: 20,
-      timePeriod: '6 weeks',
-    },
-  ];
+  // Wait for hydration before rendering
+  if (!_hasHydrated) {
+    return (
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.colors.appBg }]}
+        edges={['top']}
+      >
+        <View style={{ padding: theme.spacing.lg }}>
+          <Text
+            style={{
+              color: theme.colors.textMuted,
+              fontFamily: theme.typography.fonts.body,
+            }}
+          >
+            Loading...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
-  // TODO: Replace with actual conditioning data from useSessionStore
-  const mockConditioningData = {
-    zoneDistribution: {
-      z1: 12,
-      z2: 32,
-      z3: 38,
-      z4: 14,
-      z5: 4,
-    },
-    bestInterval: {
-      type: '4x4 @ Z4',
-      avgPace: '1:48/500m',
-    },
-    engineTrend: {
-      improvement: 3,
-      timePeriod: 'last 4 weeks',
-    },
-  };
+  const workouts = getWorkouts();
 
-  // TODO: Replace with actual readiness data from useUserStore.readinessHistory
-  const mockReadinessData = {
-    weeklyAverage: 72,
-    trend: 6,
-    bestDay: {
-      name: 'Thursday',
-      score: 85,
-    },
-    lowestDay: {
-      name: 'Monday',
-      score: 58,
-    },
-  };
+  // Log header layout fix
+  if (__DEV__) {
+    console.log('[ProgressScreen] Header layout fixed');
+  }
 
-  // TODO: Replace with actual PRs from useUserStore.personalRecords
-  const mockRecentPRs = [
-    'Back Squat: +10 lb estimated',
-    '500m Row: New Best — 1:38',
-    'Bench Press: +5 lb',
-  ];
+  // Get unique block titles from all workouts (for Main Lift Trends)
+  const uniqueBlockTitles = useMemo(() => {
+    const titles = new Set<string>();
+    workouts.forEach((workout) => {
+      workout.blocks.forEach((block) => {
+        // Only include strength blocks (main lifts)
+        if (block.type === 'strength' && block.volume > 0) {
+          titles.add(block.title);
+        }
+      });
+    });
+    return Array.from(titles).sort();
+  }, [workouts]);
 
-  const handleViewStrengthGraph = () => {
-    navigation.navigate('StrengthDetail');
-  };
+  // Filter block titles to only those with at least 2 data points
+  const blockTitlesWithData = useMemo(() => {
+    return uniqueBlockTitles.filter((title) => {
+      const trend = getBlockVolumeTrend(workouts, title);
+      return trend.length >= 2;
+    });
+  }, [uniqueBlockTitles, workouts]);
 
-  const handleViewConditioningDetails = () => {
-    navigation.navigate('ConditioningDetail');
-  };
-
-  const handleViewReadinessGraph = () => {
-    navigation.navigate('ReadinessDetail');
-  };
+  // Patterns to show (only those with data)
+  const patternsToShow = useMemo(() => {
+    const patterns: Array<'squat' | 'hinge' | 'horizontal_press' | 'horizontal_pull'> = [
+      'squat',
+      'hinge',
+      'horizontal_press',
+      'horizontal_pull',
+    ];
+    return patterns.filter((pattern) => {
+      const trend = getPatternVolumeTrend(workouts, pattern);
+      return trend.length >= 2;
+    });
+  }, [workouts]);
 
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.colors.appBg }]}
       edges={['top']}
     >
-      {/* Header */}
-      <View
-        style={[
-          styles.header,
-          {
-            paddingHorizontal: theme.spacing.lg,
-            paddingVertical: theme.spacing.md,
-            borderBottomWidth: 1,
-            borderBottomColor: theme.colors.surface3,
-          },
-        ]}
-      >
-        <Text
-          style={[
-            styles.headerTitle,
-            {
-              color: theme.colors.textPrimary,
-              fontFamily: theme.typography.fonts.headingMedium,
-              fontSize: theme.typography.sizes.h2,
-            },
-          ]}
-        >
-          Progress
-        </Text>
-      </View>
-
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[
@@ -144,421 +94,80 @@ export default function ProgressScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Strength Progression Section */}
-        <Card
-          variant="elevated"
-          padding="lg"
-          style={{ marginBottom: theme.spacing.lg }}
+        {/* Page Title */}
+        <Text
+          style={[
+            styles.headerTitle,
+            {
+              color: theme.colors.textPrimary,
+              fontFamily: theme.typography.fonts.heading,
+              fontSize: theme.typography.sizes.h1,
+              paddingHorizontal: 0,
+              marginBottom: theme.spacing.xl,
+            },
+          ]}
         >
-          <Text
-            style={[
-              styles.sectionTitle,
-              {
-                color: theme.colors.textPrimary,
-                fontFamily: theme.typography.fonts.headingMedium,
-                fontSize: theme.typography.sizes.h3,
-                marginBottom: theme.spacing.xl,
-              },
-            ]}
+          Progress Dashboard
+        </Text>
+
+        {/* Header Links */}
+        <View style={styles.headerLinks}>
+          <TouchableOpacity
+            onPress={() => router.push('/progress/exercises')}
+            activeOpacity={0.7}
           >
-            Strength Progression
-          </Text>
-
-          {mockStrengthLifts.map((lift, index) => (
-            <View
-              key={index}
-              style={[
-                styles.liftRow,
-                {
-                  marginBottom:
-                    index < mockStrengthLifts.length - 1 ? theme.spacing.lg : 0,
-                  paddingBottom:
-                    index < mockStrengthLifts.length - 1 ? theme.spacing.lg : 0,
-                  borderBottomWidth:
-                    index < mockStrengthLifts.length - 1 ? 1 : 0,
-                  borderBottomColor: theme.colors.surface3,
-                },
-              ]}
-            >
-              <View style={styles.liftInfo}>
-                <Text
-                  style={[
-                    styles.liftName,
-                    {
-                      color: theme.colors.textPrimary,
-                      fontFamily: theme.typography.fonts.headingMedium,
-                      fontSize: theme.typography.sizes.body,
-                      marginBottom: theme.spacing.xs,
-                    },
-                  ]}
-                >
-                  {lift.name}
-                </Text>
-                <Text
-                  style={[
-                    styles.liftValue,
-                    {
-                      color: theme.colors.acidGreen,
-                      fontFamily: theme.typography.fonts.bodyMedium,
-                      fontSize: theme.typography.sizes.h3,
-                      marginBottom: theme.spacing.xs,
-                    },
-                  ]}
-                >
-                  {lift.current1RM} lb
-                </Text>
-                <Text
-                  style={[
-                    styles.liftChange,
-                    {
-                      color: theme.colors.textMuted,
-                      fontFamily: theme.typography.fonts.body,
-                      fontSize: theme.typography.sizes.bodySmall,
-                    },
-                  ]}
-                >
-                  {lift.change > 0 ? '+' : ''}
-                  {lift.change} lb in {lift.timePeriod}
-                </Text>
-              </View>
-            </View>
-          ))}
-
-          <Spacer size="md" />
-
-          <PraxisButton
-            title="View Graph"
-            onPress={handleViewStrengthGraph}
-            variant="outline"
-            size="medium"
-          />
-        </Card>
-
-        {/* Conditioning Progression Section */}
-        <Card
-          variant="elevated"
-          padding="lg"
-          style={{ marginBottom: theme.spacing.lg }}
-        >
-          <Text
-            style={[
-              styles.sectionTitle,
-              {
-                color: theme.colors.textPrimary,
-                fontFamily: theme.typography.fonts.headingMedium,
-                fontSize: theme.typography.sizes.h3,
-                marginBottom: theme.spacing.xl,
-              },
-            ]}
-          >
-            Conditioning Progress
-          </Text>
-
-          <View style={styles.conditioningContent}>
             <Text
               style={[
-                styles.conditioningLabel,
+                styles.headerLink,
                 {
-                  color: theme.colors.textMuted,
+                  color: theme.colors.primary,
                   fontFamily: theme.typography.fonts.bodyMedium,
-                  fontSize: theme.typography.sizes.bodySmall,
-                  marginBottom: theme.spacing.sm,
+                  fontSize: theme.typography.sizes.body,
+                  marginRight: theme.spacing.md,
                 },
               ]}
             >
-              Zone Time Distribution
+              Strength Progress →
             </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.push('/progress/recovery')}
+            activeOpacity={0.7}
+          >
             <Text
               style={[
-                styles.conditioningValue,
+                styles.headerLink,
+                {
+                  color: theme.colors.primary,
+                  fontFamily: theme.typography.fonts.bodyMedium,
+                  fontSize: theme.typography.sizes.body,
+                },
+              ]}
+            >
+              Recovery Details →
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <Spacer size="md" />
+
+        {/* No Workouts State */}
+        {workouts.length === 0 ? (
+          <Card variant="elevated" padding="lg">
+            <Text
+              style={[
+                styles.emptyTitle,
                 {
                   color: theme.colors.textPrimary,
-                  fontFamily: theme.typography.fonts.body,
-                  fontSize: theme.typography.sizes.body,
-                  marginBottom: theme.spacing.lg,
-                },
-              ]}
-            >
-              Z1: {mockConditioningData.zoneDistribution.z1}% Z2:{' '}
-              {mockConditioningData.zoneDistribution.z2}% Z3:{' '}
-              {mockConditioningData.zoneDistribution.z3}% Z4:{' '}
-              {mockConditioningData.zoneDistribution.z4}% Z5:{' '}
-              {mockConditioningData.zoneDistribution.z5}%
-            </Text>
-
-            <Text
-              style={[
-                styles.conditioningLabel,
-                {
-                  color: theme.colors.textMuted,
-                  fontFamily: theme.typography.fonts.bodyMedium,
-                  fontSize: theme.typography.sizes.bodySmall,
-                  marginBottom: theme.spacing.sm,
-                },
-              ]}
-            >
-              Best Interval Performance
-            </Text>
-            <Text
-              style={[
-                styles.conditioningValue,
-                {
-                  color: theme.colors.textPrimary,
-                  fontFamily: theme.typography.fonts.body,
-                  fontSize: theme.typography.sizes.body,
-                  marginBottom: theme.spacing.lg,
-                },
-              ]}
-            >
-              {mockConditioningData.bestInterval.type} — Avg Pace:{' '}
-              {mockConditioningData.bestInterval.avgPace}
-            </Text>
-
-            <Text
-              style={[
-                styles.conditioningLabel,
-                {
-                  color: theme.colors.textMuted,
-                  fontFamily: theme.typography.fonts.bodyMedium,
-                  fontSize: theme.typography.sizes.bodySmall,
-                  marginBottom: theme.spacing.sm,
-                },
-              ]}
-            >
-              Engine Trend
-            </Text>
-            <Text
-              style={[
-                styles.conditioningValue,
-                {
-                  color: theme.colors.acidGreen,
-                  fontFamily: theme.typography.fonts.bodyMedium,
-                  fontSize: theme.typography.sizes.body,
-                },
-              ]}
-            >
-              +{mockConditioningData.engineTrend.improvement}% improvement over{' '}
-              {mockConditioningData.engineTrend.timePeriod}
-            </Text>
-          </View>
-
-          <Spacer size="md" />
-
-          <PraxisButton
-            title="View Details"
-            onPress={handleViewConditioningDetails}
-            variant="outline"
-            size="medium"
-          />
-        </Card>
-
-        {/* Readiness Trend Section */}
-        <Card
-          variant="elevated"
-          padding="lg"
-          style={{ marginBottom: theme.spacing.lg }}
-        >
-          <Text
-            style={[
-              styles.sectionTitle,
-              {
-                color: theme.colors.textPrimary,
-                fontFamily: theme.typography.fonts.headingMedium,
-                fontSize: theme.typography.sizes.h3,
-                marginBottom: theme.spacing.xl,
-              },
-            ]}
-          >
-            Readiness
-          </Text>
-
-          <View style={styles.readinessContent}>
-            <View
-              style={[
-                styles.readinessRow,
-                {
+                  fontFamily: theme.typography.fonts.headingMedium,
+                  fontSize: theme.typography.sizes.h3,
                   marginBottom: theme.spacing.md,
-                  paddingBottom: theme.spacing.md,
-                  borderBottomWidth: 1,
-                  borderBottomColor: theme.colors.surface3,
+                  textAlign: 'center',
                 },
               ]}
             >
-              <Text
-                style={[
-                  styles.readinessLabel,
-                  {
-                    color: theme.colors.textMuted,
-                    fontFamily: theme.typography.fonts.body,
-                    fontSize: theme.typography.sizes.body,
-                  },
-                ]}
-              >
-                This Week: Avg
-              </Text>
-              <Text
-                style={[
-                  styles.readinessValue,
-                  {
-                    color: theme.colors.acidGreen,
-                    fontFamily: theme.typography.fonts.headingMedium,
-                    fontSize: theme.typography.sizes.h2,
-                  },
-                ]}
-              >
-                {mockReadinessData.weeklyAverage}
-              </Text>
-            </View>
-
-            <View
-              style={[
-                styles.readinessRow,
-                {
-                  marginBottom: theme.spacing.md,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.readinessLabel,
-                  {
-                    color: theme.colors.textMuted,
-                    fontFamily: theme.typography.fonts.body,
-                    fontSize: theme.typography.sizes.body,
-                  },
-                ]}
-              >
-                Trend:
-              </Text>
-              <Text
-                style={[
-                  styles.readinessValue,
-                  {
-                    color: theme.colors.acidGreen,
-                    fontFamily: theme.typography.fonts.bodyMedium,
-                    fontSize: theme.typography.sizes.body,
-                  },
-                ]}
-              >
-                +{mockReadinessData.trend}% vs last week
-              </Text>
-            </View>
-
-            <View
-              style={[
-                styles.readinessDayRow,
-                {
-                  marginBottom: theme.spacing.sm,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.readinessLabel,
-                  {
-                    color: theme.colors.textMuted,
-                    fontFamily: theme.typography.fonts.body,
-                    fontSize: theme.typography.sizes.bodySmall,
-                  },
-                ]}
-              >
-                Best:
-              </Text>
-              <Text
-                style={[
-                  styles.readinessDayValue,
-                  {
-                    color: theme.colors.textPrimary,
-                    fontFamily: theme.typography.fonts.bodyMedium,
-                    fontSize: theme.typography.sizes.bodySmall,
-                  },
-                ]}
-              >
-                {mockReadinessData.bestDay.name} (
-                {mockReadinessData.bestDay.score})
-              </Text>
-            </View>
-
-            <View style={styles.readinessDayRow}>
-              <Text
-                style={[
-                  styles.readinessLabel,
-                  {
-                    color: theme.colors.textMuted,
-                    fontFamily: theme.typography.fonts.body,
-                    fontSize: theme.typography.sizes.bodySmall,
-                  },
-                ]}
-              >
-                Lowest:
-              </Text>
-              <Text
-                style={[
-                  styles.readinessDayValue,
-                  {
-                    color: theme.colors.textPrimary,
-                    fontFamily: theme.typography.fonts.bodyMedium,
-                    fontSize: theme.typography.sizes.bodySmall,
-                  },
-                ]}
-              >
-                {mockReadinessData.lowestDay.name} (
-                {mockReadinessData.lowestDay.score})
-              </Text>
-            </View>
-          </View>
-
-          <Spacer size="md" />
-
-          <PraxisButton
-            title="View Graph"
-            onPress={handleViewReadinessGraph}
-            variant="outline"
-            size="medium"
-          />
-        </Card>
-
-        {/* Recent PR Highlights Section */}
-        <Card
-          variant="elevated"
-          padding="lg"
-          style={{ marginBottom: theme.spacing.lg }}
-        >
-          <Text
-            style={[
-              styles.sectionTitle,
-              {
-                color: theme.colors.textPrimary,
-                fontFamily: theme.typography.fonts.headingMedium,
-                fontSize: theme.typography.sizes.h3,
-                marginBottom: theme.spacing.xl,
-              },
-            ]}
-          >
-            Recent PRs
-          </Text>
-
-          {mockRecentPRs.length > 0 ? (
-            <View style={styles.prList}>
-              {mockRecentPRs.map((pr, index) => (
-                <Text
-                  key={index}
-                  style={[
-                    styles.prItem,
-                    {
-                      color: theme.colors.textPrimary,
-                      fontFamily: theme.typography.fonts.body,
-                      fontSize: theme.typography.sizes.body,
-                      marginBottom:
-                        index < mockRecentPRs.length - 1 ? theme.spacing.md : 0,
-                    },
-                  ]}
-                >
-                  • {pr}
-                </Text>
-              ))}
-            </View>
-          ) : (
+              No workouts yet
+            </Text>
             <Text
               style={[
                 styles.emptyText,
@@ -566,15 +175,107 @@ export default function ProgressScreen() {
                   color: theme.colors.textMuted,
                   fontFamily: theme.typography.fonts.body,
                   fontSize: theme.typography.sizes.body,
+                  textAlign: 'center',
                 },
               ]}
             >
-              No PRs yet. Keep training hard.
+              Complete your first workout to see your progress here.
             </Text>
-          )}
-        </Card>
+          </Card>
+        ) : (
+          <>
+            {/* Overall Progress Summary Card */}
+            <ProgressSummaryCard workouts={workouts} />
 
-        <Spacer size="lg" />
+            <Spacer size="lg" />
+
+            {/* Volume Trend Chart */}
+            <VolumeTrendChart workouts={workouts} />
+
+            <Spacer size="lg" />
+
+            {/* Intensity Trend Chart */}
+            <IntensityTrendChart workouts={workouts} />
+
+            <Spacer size="lg" />
+
+            {/* Movement Pattern Trends Section */}
+            {patternsToShow.length > 0 && (
+              <>
+                <Text
+                  style={[
+                    styles.sectionTitle,
+                    {
+                      color: theme.colors.textPrimary,
+                      fontFamily: theme.typography.fonts.headingMedium,
+                      fontSize: theme.typography.sizes.h3,
+                      marginBottom: theme.spacing.md,
+                    },
+                  ]}
+                >
+                  Movement Pattern Trends
+                </Text>
+
+                {patternsToShow.map((pattern, index) => (
+                  <React.Fragment key={pattern}>
+                    <PatternVolumeTrendChart workouts={workouts} pattern={pattern} />
+                    {index < patternsToShow.length - 1 && <Spacer size="lg" />}
+                  </React.Fragment>
+                ))}
+
+                <Spacer size="lg" />
+              </>
+            )}
+
+            {/* Main Lift Trends Section */}
+            {blockTitlesWithData.length > 0 && (
+              <>
+                <Text
+                  style={[
+                    styles.sectionTitle,
+                    {
+                      color: theme.colors.textPrimary,
+                      fontFamily: theme.typography.fonts.headingMedium,
+                      fontSize: theme.typography.sizes.h3,
+                      marginBottom: theme.spacing.md,
+                    },
+                  ]}
+                >
+                  Main Lift Trends
+                </Text>
+
+                {blockTitlesWithData.map((blockTitle, index) => (
+                  <React.Fragment key={blockTitle}>
+                    <BlockVolumeTrendChart workouts={workouts} blockTitle={blockTitle} />
+                    {index < blockTitlesWithData.length - 1 && <Spacer size="lg" />}
+                  </React.Fragment>
+                ))}
+
+                <Spacer size="lg" />
+              </>
+            )}
+
+            {/* Recent Workouts Section */}
+            <Text
+              style={[
+                styles.sectionTitle,
+                {
+                  color: theme.colors.textPrimary,
+                  fontFamily: theme.typography.fonts.headingMedium,
+                  fontSize: theme.typography.sizes.h3,
+                  marginBottom: theme.spacing.md,
+                },
+              ]}
+            >
+              Recent Workouts
+            </Text>
+
+            {/* Workout History List */}
+            <WorkoutHistoryList workouts={workouts} />
+
+            <Spacer size="lg" />
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -584,77 +285,31 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontWeight: '600',
-  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
   },
+  headerTitle: {
+    fontWeight: '600',
+  },
+  headerLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  headerLink: {
+    fontWeight: '500',
+  },
   sectionTitle: {
     fontWeight: '600',
   },
-  liftRow: {
-    width: '100%',
-  },
-  liftInfo: {
-    width: '100%',
-  },
-  liftName: {
-    fontWeight: '500',
-  },
-  liftValue: {
+  emptyTitle: {
     fontWeight: '600',
-  },
-  liftChange: {
-    fontWeight: '400',
-  },
-  conditioningContent: {
-    width: '100%',
-  },
-  conditioningLabel: {
-    fontWeight: '500',
-  },
-  conditioningValue: {
-    fontWeight: '400',
-    lineHeight: 22,
-  },
-  readinessContent: {
-    width: '100%',
-  },
-  readinessRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  readinessLabel: {
-    fontWeight: '400',
-  },
-  readinessValue: {
-    fontWeight: '600',
-  },
-  readinessDayRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  readinessDayValue: {
-    fontWeight: '500',
-  },
-  prList: {
-    width: '100%',
-  },
-  prItem: {
-    lineHeight: 22,
   },
   emptyText: {
-    textAlign: 'center',
-    fontStyle: 'italic',
+    fontWeight: '400',
+    lineHeight: 22,
   },
 });
