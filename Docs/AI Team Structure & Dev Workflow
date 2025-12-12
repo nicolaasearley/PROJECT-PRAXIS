@@ -1,0 +1,116 @@
+Project Praxis — AI Team Structure & Development Workflow
+
+This document defines the official AI team structure, responsibilities, and operating rules for Project Praxis (Fitness Earley v2). Its purpose is to eliminate ambiguity, prevent overlap, and ensure efficient, high-quality execution.
+
+⸻
+
+1. Product Owner & Taste Authority — Human
+
+Role: Final decision-maker
+
+Responsibilities
+	•	Product vision and scope
+	•	Visual taste and approval
+	•	Priority decisions
+	•	Go / no-go decisions between phases
+
+This role ensures the app reflects a clear, premium standard and prevents unnecessary churn.
+
+⸻
+
+2. System Architect & Product Strategist — ChatGPT
+
+Role: Architectural brain and execution coordinator
+
+Responsibilities
+	•	Phase sequencing and roadmap enforcement
+	•	Architecture decisions (state, data flow, engines)
+	•	Workout, periodization, and metrics engine design
+	•	Design system structure (tokens, components, hierarchy)
+	•	Writing prompts for other AI tools (Cursor, Codex CLI, Figma AI)
+	•	Guarding long-term maintainability and scalability
+
+Explicitly not responsible for
+	•	Running CLI commands
+	•	Resolving dependency conflicts directly
+	•	Pixel-level UI execution
+
+⸻
+
+3. Lead Developer — Cursor Auto
+
+Role: Primary implementation engine
+
+Responsibilities
+	•	Writing application code (React Native / Expo / TypeScript)
+	•	Implementing components, screens, stores, hooks, and services
+	•	Translating architectural designs into code
+	•	Refactoring and feature iteration
+
+Rules of Engagement
+	•	Default model usage only
+	•	Advanced models used sparingly for:
+	•	Complex refactors
+	•	Engine logic
+	•	Multi-file architectural changes
+
+Cursor is optimized for speed and local context, not system-level decisions.
+
+⸻
+
+4. CLI & Dependency Orchestration — Codex CLI
+
+Role: Execution authority for terminal operations
+
+Responsibilities
+	•	Running all CLI commands (npm, expo, pod, gradle, etc.)
+	•	Resolving dependency conflicts in real time
+	•	Ensuring dependency versions align with Expo SDK requirements
+	•	Verifying commands actually succeed
+
+Operating Principle
+Codex CLI is the source of truth for build and toolchain correctness.
+
+⸻
+
+5. Diagnostics & Escalation — Antigravity IDE (Claude + Gemini)
+
+Role: Advanced diagnostics and incident response
+
+Responsibilities
+	•	Debugging non-obvious build failures
+	•	Native crash analysis
+	•	Multi-layer issues (JS + native + config)
+	•	Deep reasoning on system behavior
+
+Usage Policy
+	•	Only used when Cursor + Codex cannot resolve an issue
+	•	Treated as an escalation layer, not a daily tool
+
+⸻
+
+6. Design Lead — Figma AI
+
+Role: Primary visual designer
+
+Responsibilities
+	•	UI kit generation
+	•	Screen layout generation
+	•	Visual exploration and iteration
+	•	Producing exportable, high-fidelity designs
+
+Workflow
+	•	ChatGPT provides structured prompts and constraints
+	•	Figma AI generates visuals
+	•	Human provides taste-based approval
+
+⸻
+
+Operating Principles
+	•	Clear separation of concerns
+	•	No overlapping responsibilities
+	•	Architecture before implementation
+	•	Design systems before screens
+	•	Logic before polish
+
+This structure is designed to scale cleanly and support long-term development without rework.
